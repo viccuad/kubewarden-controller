@@ -1,0 +1,27 @@
+name: Trivy vuln scan
+
+on:
+  workflow_call:
+  schedule:
+    - cron: '0 9 * * *'
+
+jobs:
+  scan:
+    if: github.repository_owner == 'kubewarden'
+    name: Trivy daily vuln scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: obtain latest tag
+        id: obtain-tag
+        uses: oprypin/find-latest-tag@v1
+        with:
+          repository: kubewarden/kubewarden-controller  # The repository to scan.
+          releases-only: true  # We know that all relevant tags have a GitHub release for them.
+
+      - name: Pull docker image
+        run: docker pull
+
+      - uses: lazy-actions/gitrivy@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image: ghcr.io/kubewarden/kubewarden-controller:${{ steps.obtain-tag.outputs.tag }}
