@@ -88,12 +88,22 @@ kubectl patch clusteradmissionpolicy psp-capabilities -p '{"metadata":{"finalize
 The [documentation](https://docs.kubewarden.io) provides more insights
 about how the project works and how to use it.
 
-# Software bill of materials
+# Software bill of materials & provenance
 
-Kubewarden controller has its software bill of materials (SBOM) published every
-release. It follows the [SPDX](https://spdx.dev/) version 2.2 format and you can
-find it together with the signature and certificate used to sign it in the
-[release assets](https://github.com/kubewarden/kubewarden-controller/releases)
+Kubewarden controller has its software bill of materials (SBOM) and build
+provenance information published every release. It follows the
+[SPDX](https://spdx.dev/) format and
+[SLSA](https://slsa.dev/provenance/v0.2#schema) provenance schema respectfully.
+
+You can find them together with the signature and certificate used to sign it
+in the [release
+assets](https://github.com/kubewarden/kubewarden-controller/releases), and
+attached to the image as JSON-encoded documents following the [in-toto SPDX
+predicate](https://github.com/in-toto/attestation/blob/main/spec/predicates/spdx.md)
+format. You can obtain them with
+[`crane`](https://github.com/google/go-containerregistry/blob/main/cmd/crane/README.md)
+or [`docker buildx imagetools
+inspect`](https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect).
 
 ## Security disclosure
 
