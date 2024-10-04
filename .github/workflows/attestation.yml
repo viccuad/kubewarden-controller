@@ -9,7 +9,7 @@ on:
 
 jobs:
   sbom:
-    name: Generate SBOM, sign and attach them to OCI image
+    name: Sign SBOMs and upload as artifacts
     strategy:
       matrix:
         arch: [amd64, arm64]
@@ -58,7 +58,8 @@ jobs:
           cosign sign --yes \
             ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.ATTESTATION_MANIFEST_DIGEST}}
 
-          cosign verify --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+          cosign verify \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
             --certificate-identity-regexp="https://github.com/${{github.repository_owner}}/kubewarden-controller*"  \
             ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.ATTESTATION_MANIFEST_DIGEST}}
 
@@ -74,55 +75,70 @@ jobs:
           cosign sign --yes \
           ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.PROVENANCE_DIGEST}}
 
-          cosign verify --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+          cosign verify \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
             --certificate-identity-regexp="https://github.com/${{github.repository_owner}}/kubewarden-controller*"  \
             ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.PROVENANCE_DIGEST}}
 
-      - name: Find SBOM manifest digest
+      - name: Find SBOM manifest layers digest
         run: |
           set -e
-          DIGEST=$(crane manifest ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.ATTESTATION_MANIFEST_DIGEST}} |  \
-            jq '.layers[] | select(.annotations["in-toto.io/predicate-type"] == "https://spdx.dev/Document") | .digest')
-          echo "SBOM_DIGEST=${DIGEST}" >> "$GITHUB_ENV"
+          DIGESTS=$(crane manifest ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.ATTESTATION_MANIFEST_DIGEST}} |  \
+            jq '.layers | map(select(.annotations["in-toto.io/predicate-type"] == "https://spdx.dev/Document")) | map(.digest) | join(" ")')
+          echo "SBOM_DIGESTS=${DIGESTS}" >> "$GITHUB_ENV"
 
-      - name: Sign SBOM manifest
+      - name: Sign SBOM layers
         run: |
-          cosign sign --yes \
-          ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.SBOM_DIGEST}}
+          for sbom_digest in "${{ env.SBOM_DIGESTS }}"; do
+            cosign sign --yes \
+            ghcr.io/${{github.repository_owner}}/kubewarden-controller@$sbom_digest
+          done
 
-          cosign verify --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp="https://github.com/${{github.repository_owner}}/kubewarden-controller*"  \
-            ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.SBOM_DIGEST}}
+      - name: Verifying SBOM layers
+        run: |
+          for sbom_digest in "${{ env.SBOM_DIGESTS }}"; do
+            cosign verify \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --certificate-identity-regexp="https://github.com/${{github.repository_owner}}/kubewarden-controller*"  \
+              ghcr.io/${{github.repository_owner}}/kubewarden-controller@$sbom_digest
+          done
 
       - name: Download provenance and SBOM files
         run: |
           set -e
           crane blob ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.PROVENANCE_DIGEST}} > kubewarden-controller-attestation-${{ matrix.arch }}-provenance.json
-          crane blob ghcr.io/${{github.repository_owner}}/kubewarden-controller@${{ env.SBOM_DIGEST}} > kubewarden-controller-attestation-${{ matrix.arch }}-sbom.json
+
+          for sbom_digest in "${{ env.SBOM_DIGESTS }}"; do
+          crane blob ghcr.io/${{github.repository_owner}}/kubewarden-controller@$sbom_digest > kubewarden-controller-attestation-${{ matrix.arch }}-sbom-${sbom_digest#"sha256:"}.json
+          done
 
       - name: Sign provenance and SBOM files
         run: |
           cosign sign-blob --yes \
-            --output-certificate kubewarden-controller-attestation-${{ matrix.arch }}-provenance.cert \
-            --output-signature kubewarden-controller-attestation-${{ matrix.arch }}-provenance.sig \
+            --bundle kubewarden-controller-attestation-${{ matrix.arch }}-provenance-cosign.bundle \
             kubewarden-controller-attestation-${{ matrix.arch }}-provenance.json
 
-          cosign verify-blob --certificate kubewarden-controller-attestation-${{ matrix.arch }}-provenance.cert \
-            --signature kubewarden-controller-attestation-${{ matrix.arch }}-provenance.sig \
+          for sbom_digest in "${{ env.SBOM_DIGESTS }}"; do
+            cosign sign-blob --yes \
+              --bundle kubewarden-controller-attestation-${{ matrix.arch }}-sbom-${sbom_digest#"sha256:"}-cosign.bundle \
+              kubewarden-controller-attestation-${{ matrix.arch }}-sbom-${sbom_digest#"sha256:"}.json
+          done
+
+      - name: Verify provenance and SBOM signatures
+        run: |
+          cosign verify-blob \
+            --bundle kubewarden-controller-attestation-${{ matrix.arch }}-provenance-cosign.bundle \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
             --certificate-identity-regexp="https://github.com/${{github.repository_owner}}/kubewarden-controller*" \
             kubewarden-controller-attestation-${{ matrix.arch }}-provenance.json
 
-          cosign sign-blob --yes \
-            --output-certificate kubewarden-controller-attestation-${{ matrix.arch }}-sbom.cert \
-            --output-signature kubewarden-controller-attestation-${{ matrix.arch }}-sbom.sig \
-            kubewarden-controller-attestation-${{ matrix.arch }}-provenance.json
-
-          cosign verify-blob --certificate kubewarden-controller-attestation-${{ matrix.arch }}-sbom.cert \
-            --signature kubewarden-controller-attestation-${{ matrix.arch }}-sbom.sig \
-            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp="https://github.com/${{github.repository_owner}}/kubewarden-controller*" \
-            kubewarden-controller-attestation-${{ matrix.arch }}-sbom.json
+          for sbom_digest in "${{ env.SBOM_DIGESTS }}"; do
+            cosign verify-blob \
+              --bundle kubewarden-controller-attestation-${{ matrix.arch }}-sbom-${sbom_digest#"sha256:"}-cosign.bundle \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --certificate-identity-regexp="https://github.com/${{github.repository_owner}}/kubewarden-controller*" \
+              kubewarden-controller-attestation-${{ matrix.arch }}-sbom-${sbom_digest#"sha256:"}.json
+          done
 
       - name: Upload SBOMs as artifacts
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
