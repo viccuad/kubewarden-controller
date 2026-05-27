@@ -36,7 +36,16 @@ spec:
       containers:
         - name: pre-delete-job
           image: '{{ template "system_default_registry" . }}{{ .Values.preDeleteJob.image.repository }}:{{ .Values.preDeleteJob.image.tag }}'
-          command: ["kubectl", "delete", "--all", "policyservers.policies.kubewarden.io"]
+          command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl delete --wait --all clusteradmissionpolicies.policies.kubewarden.io &
+              kubectl delete --wait --all --all-namespaces admissionpolicies.policies.kubewarden.io &
+              kubectl delete --wait --all clusteradmissionpolicygroups.policies.kubewarden.io &
+              kubectl delete --wait --all --all-namespaces admissionpolicygroups.policies.kubewarden.io &
+              wait &&
+              kubectl delete --wait --all policyservers.policies.kubewarden.io
           env:
             - name: KUBERLR_ALLOWDOWNLOAD
               value: "1"
