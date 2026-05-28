@@ -676,7 +676,7 @@ fn subcommand_save() -> Command {
 
 fn subcommand_docs() -> Command {
     Command::new("docs")
-        .about("Generates the markdown documentation for kwctl commands")
+        .about("Generates the AsciiDoc documentation for kwctl commands")
         .arg(
             Arg::new("output")
                 .long("output")
