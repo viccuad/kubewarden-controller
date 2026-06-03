@@ -1,21 +1,21 @@
-{{ if .Values.recommendedPolicies.enabled }}
+{{- define "kubewarden.defaults.podPrivileged" -}}
 apiVersion: {{ $.Values.crdVersion }}
 kind: ClusterAdmissionPolicy
 metadata:
+  name: {{ .Values.recommendedPolicies.podPrivilegedPolicy.name }}
   labels:
-    {{- include "kubewarden-defaults.labels" . | nindent 4 }}
+    app.kubernetes.io/part-of: kubewarden
     app.kubernetes.io/component: policy
+    app.kubernetes.io/managed-by: kubewarden-controller
   annotations:
-    io.kubewarden.policy.category: PSP
     io.kubewarden.policy.severity: medium
+    io.kubewarden.policy.category: PSP
     {{- include "kubewarden-defaults.annotations" . | nindent 4 }}
-  name: {{ $.Values.recommendedPolicies.podPrivilegedPolicy.name }}
 spec:
-  mode: {{ $.Values.recommendedPolicies.defaultPolicyMode }}
-  failurePolicy: {{ template "policy_failure_policy" . }}
+  mode: {{ .Values.recommendedPolicies.defaultPolicyMode | default "monitor" }}
+  failurePolicy: {{ include "policy_failure_policy" . | trim }}
   module: {{ template "policy_default_registry" . }}{{ .Values.recommendedPolicies.podPrivilegedPolicy.module.repository }}:{{ .Values.recommendedPolicies.podPrivilegedPolicy.module.tag }}
-
-{{ include "policy-namespace-selector" . | indent 2}}
+  mutating: false
   rules:
     - apiGroups: [""]
       apiVersions: ["v1"]
@@ -27,13 +27,12 @@ spec:
       operations: ["CREATE", "UPDATE"]
     - apiGroups: ["apps"]
       apiVersions: ["v1"]
-      resources: ["deployments","replicasets","statefulsets","daemonsets"]
+      resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
       operations: ["CREATE", "UPDATE"]
     - apiGroups: ["batch"]
       apiVersions: ["v1"]
-      resources: ["jobs","cronjobs"]
+      resources: ["jobs", "cronjobs"]
       operations: ["CREATE", "UPDATE"]
-  mutating: false
-  settings:
-    {{- toYaml .Values.recommendedPolicies.podPrivilegedPolicy.settings | replace "|\n" "" | nindent 4 }}
-{{ end }}
+  {{- include "policy-namespace-selector" . | nindent 2 }}
+  settings: {{ .Values.recommendedPolicies.podPrivilegedPolicy.settings | toYaml | nindent 4 }}
+{{- end -}}

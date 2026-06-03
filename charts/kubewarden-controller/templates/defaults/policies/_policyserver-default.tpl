@@ -1,24 +1,25 @@
-{{- if .Values.policyServer.enabled }}
+{{- define "kubewarden.defaults.policyserverDefault" -}}
 apiVersion: {{ $.Values.crdVersion }}
 kind: PolicyServer
 metadata:
+  name: default
   labels:
-    {{- include "kubewarden-defaults.labels" . | nindent 4 }}
+    app.kubernetes.io/part-of: kubewarden
     app.kubernetes.io/component: policy-server
+    app.kubernetes.io/managed-by: kubewarden-controller
   annotations:
     {{- include "kubewarden-defaults.annotations" . | nindent 4 }}
-  name: default
   finalizers:
     - kubewarden.io/finalizer
 spec:
   image: {{ template "system_default_registry" . }}{{ .Values.policyServer.image.repository }}:{{ .Values.policyServer.image.tag }}
   serviceAccountName: {{ .Values.policyServer.serviceAccountName }}
   replicas: {{ .Values.policyServer.replicaCount | default 1 }}
-  {{- if .Values.policyServer.minAvailable  }}
-  minAvailable: {{ .Values.policyServer.minAvailable  }}
+  {{- if .Values.policyServer.minAvailable }}
+  minAvailable: {{ .Values.policyServer.minAvailable }}
   {{- end }}
   {{- if .Values.policyServer.maxUnavailable }}
-  maxUnavailable: {{ .Values.policyServer.maxUnavailable  }}
+  maxUnavailable: {{ .Values.policyServer.maxUnavailable }}
   {{- end }}
   {{- $affinity := include "kubewarden-defaults.effectiveAffinity" . -}}
   {{- if $affinity }}
@@ -45,7 +46,7 @@ spec:
   {{- if .Values.policyServer.annotations }}
   annotations:
     {{- range $key, $value := .Values.policyServer.annotations }}
-      {{ $key | quote }}: {{ $value | quote }}
+    {{ $key | quote }}: {{ $value | quote }}
     {{- end }}
   {{- end }}
   {{- if .Values.policyServer.env }}
@@ -93,4 +94,4 @@ spec:
   {{- if .Values.policyServer.metricsPort }}
   metricsPort: {{ .Values.policyServer.metricsPort }}
   {{- end }}
-{{- end }}
+{{- end -}}

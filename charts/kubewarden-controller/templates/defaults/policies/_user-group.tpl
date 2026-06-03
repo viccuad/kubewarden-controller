@@ -1,26 +1,26 @@
-{{ if .Values.recommendedPolicies.enabled }}
+{{- define "kubewarden.defaults.userGroup" -}}
 apiVersion: {{ $.Values.crdVersion }}
 kind: ClusterAdmissionPolicy
 metadata:
+  name: {{ .Values.recommendedPolicies.userGroupPolicy.name }}
   labels:
-    {{- include "kubewarden-defaults.labels" . | nindent 4 }}
+    app.kubernetes.io/part-of: kubewarden
     app.kubernetes.io/component: policy
+    app.kubernetes.io/managed-by: kubewarden-controller
   annotations:
-    io.kubewarden.policy.category: PSP
     io.kubewarden.policy.severity: medium
+    io.kubewarden.policy.category: PSP
     {{- include "kubewarden-defaults.annotations" . | nindent 4 }}
-  name: {{ $.Values.recommendedPolicies.userGroupPolicy.name }}
 spec:
-  mode: {{ $.Values.recommendedPolicies.defaultPolicyMode }}
-  failurePolicy: {{ template "policy_failure_policy" . }}
+  mode: {{ .Values.recommendedPolicies.defaultPolicyMode | default "monitor" }}
+  failurePolicy: {{ include "policy_failure_policy" . | trim }}
   module: {{ template "policy_default_registry" . }}{{ .Values.recommendedPolicies.userGroupPolicy.module.repository }}:{{ .Values.recommendedPolicies.userGroupPolicy.module.tag }}
-{{ include "policy-namespace-selector" . | indent 2}}
+  mutating: true
   rules:
     - apiGroups: [""]
       apiVersions: ["v1"]
       resources: ["pods"]
       operations: ["CREATE"] # kubernetes doesn't allow to add/remove privileged containers to an already running pod
-  mutating: true
-  settings:
-    {{- toYaml .Values.recommendedPolicies.userGroupPolicy.settings | replace "|\n" "" | nindent 4 }}
-{{ end }}
+  {{- include "policy-namespace-selector" . | nindent 2 }}
+  settings: {{ .Values.recommendedPolicies.userGroupPolicy.settings | toYaml | nindent 4 }}
+{{- end -}}
