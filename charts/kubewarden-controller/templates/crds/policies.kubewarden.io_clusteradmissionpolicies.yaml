@@ -4,17 +4,18 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: admissionpolicies.policies.kubewarden.io
+    helm.sh/resource-policy: keep
+  name: clusteradmissionpolicies.policies.kubewarden.io
 spec:
   group: policies.kubewarden.io
   names:
-    kind: AdmissionPolicy
-    listKind: AdmissionPolicyList
-    plural: admissionpolicies
+    kind: ClusterAdmissionPolicy
+    listKind: ClusterAdmissionPolicyList
+    plural: clusteradmissionpolicies
     shortNames:
-    - ap
-    singular: admissionpolicy
-  scope: Namespaced
+    - cap
+    singular: clusteradmissionpolicy
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - description: Bound to Policy Server
@@ -55,7 +56,8 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: AdmissionPolicy is the Schema for the admissionpolicies API
+        description: ClusterAdmissionPolicy is the Schema for the clusteradmissionpolicies
+          API
         properties:
           apiVersion:
             description: |-
@@ -75,8 +77,19 @@ spec:
           metadata:
             type: object
           spec:
-            description: AdmissionPolicySpec defines the desired state of AdmissionPolicy.
+            description: ClusterAdmissionPolicySpec defines the desired state of ClusterAdmissionPolicy.
             properties:
+              allowInsideAdmissionControllerNamespace:
+                description: |-
+                  AllowInsideAdmissionControllerNamespace controls whether the policy should also be
+                  evaluated for resources in the namespace where Kubewarden is deployed.
+                  By default (false), an exclusion rule is added to the webhook so that the
+                  Kubewarden namespace is never targeted, protecting against an accidental
+                  lockout. Set this to true only if you deliberately want the policy to apply
+                  inside the Kubewarden namespace.
+                  Warning: setting this to true may cause a deadlock if the policy prevents
+                  Kubewarden components from starting.
+                type: boolean
               backgroundAudit:
                 default: true
                 description: |-
@@ -85,6 +98,26 @@ spec:
                   evaluation results during audit checks and will be skipped.
                   The default is "true".
                 type: boolean
+              contextAwareResources:
+                description: |-
+                  List of Kubernetes resources the policy is allowed to access at evaluation time.
+                  Access to these resources is done using the `ServiceAccount` of the PolicyServer
+                  the policy is assigned to.
+                items:
+                  description: ContextAwareResource identifies a Kubernetes resource.
+                  properties:
+                    apiVersion:
+                      description: apiVersion of the resource (v1 for core group,
+                        groupName/groupVersions for other).
+                      type: string
+                    kind:
+                      description: Singular PascalCase name of the resource
+                      type: string
+                  required:
+                  - apiVersion
+                  - kind
+                  type: object
+                type: array
               failurePolicy:
                 description: |-
                   FailurePolicy defines how unrecognized errors and timeout errors from the
@@ -201,6 +234,97 @@ spec:
                   Mutating indicates whether a policy has the ability to mutate
                   incoming requests or not.
                 type: boolean
+              namespaceSelector:
+                description: |-
+                  NamespaceSelector decides whether to run the webhook on an object based
+                  on whether the namespace for that object matches the selector. If the
+                  object itself is a namespace, the matching is performed on
+                  object.metadata.labels. If the object is another cluster scoped resource,
+                  it never skips the webhook.
+                  <br/><br/>
+                  For example, to run the webhook on any objects whose namespace is not
+                  associated with "runlevel" of "0" or "1";  you will set the selector as
+                  follows:
+                  <pre>
+                  "namespaceSelector": \{<br/>
+                  &nbsp;&nbsp;"matchExpressions": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\{<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"key": "runlevel",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"operator": "NotIn",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"values": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"0",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"1"<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;]<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\}<br/>
+                  &nbsp;&nbsp;]<br/>
+                  \}
+                  </pre>
+                  If instead you want to only run the webhook on any objects whose
+                  namespace is associated with the "environment" of "prod" or "staging";
+                  you will set the selector as follows:
+                  <pre>
+                  "namespaceSelector": \{<br/>
+                  &nbsp;&nbsp;"matchExpressions": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\{<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"key": "environment",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"operator": "In",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"values": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"prod",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"staging"<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;]<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\}<br/>
+                  &nbsp;&nbsp;]<br/>
+                  \}
+                  </pre>
+                  See
+                  https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+                  for more examples of label selectors.
+                  <br/><br/>
+                  Default to the empty LabelSelector, which matches everything.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
               objectSelector:
                 description: |-
                   ObjectSelector decides whether to run the webhook based on if the
@@ -500,7 +624,8 @@ spec:
     name: v1alpha2
     schema:
       openAPIV3Schema:
-        description: AdmissionPolicy is the Schema for the admissionpolicies API
+        description: ClusterAdmissionPolicy is the Schema for the clusteradmissionpolicies
+          API
         properties:
           apiVersion:
             description: |-
@@ -520,7 +645,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: AdmissionPolicySpec defines the desired state of AdmissionPolicy.
+            description: ClusterAdmissionPolicySpec defines the desired state of ClusterAdmissionPolicy.
             properties:
               failurePolicy:
                 description: |-
@@ -578,6 +703,97 @@ spec:
                   Mutating indicates whether a policy has the ability to mutate
                   incoming requests or not.
                 type: boolean
+              namespaceSelector:
+                description: |-
+                  NamespaceSelector decides whether to run the webhook on an object based
+                  on whether the namespace for that object matches the selector. If the
+                  object itself is a namespace, the matching is performed on
+                  object.metadata.labels. If the object is another cluster scoped resource,
+                  it never skips the webhook.
+                  <br/><br/>
+                  For example, to run the webhook on any objects whose namespace is not
+                  associated with "runlevel" of "0" or "1";  you will set the selector as
+                  follows:
+                  <pre>
+                  "namespaceSelector": \{<br/>
+                  &nbsp;&nbsp;"matchExpressions": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\{<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"key": "runlevel",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"operator": "NotIn",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"values": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"0",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"1"<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;]<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\}<br/>
+                  &nbsp;&nbsp;]<br/>
+                  \}
+                  </pre>
+                  If instead you want to only run the webhook on any objects whose
+                  namespace is associated with the "environment" of "prod" or "staging";
+                  you will set the selector as follows:
+                  <pre>
+                  "namespaceSelector": \{<br/>
+                  &nbsp;&nbsp;"matchExpressions": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\{<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"key": "environment",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"operator": "In",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"values": [<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"prod",<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"staging"<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;]<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;\}<br/>
+                  &nbsp;&nbsp;]<br/>
+                  \}
+                  </pre>
+                  See
+                  https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+                  for more examples of label selectors.
+                  <br/><br/>
+                  Default to the empty LabelSelector, which matches everything.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
               objectSelector:
                 description: |-
                   ObjectSelector decides whether to run the webhook based on if the

@@ -319,6 +319,17 @@
         "replicas": {
             "type": "integer"
         },
+        "reportCRDs": {
+            "type": "object",
+            "properties": {
+                "installOpenReportsCRDs": {
+                    "type": "boolean"
+                },
+                "installPolicyReportCRDs": {
+                    "type": "boolean"
+                }
+            }
+        },
         "resources": {
             "type": "object",
             "properties": {
