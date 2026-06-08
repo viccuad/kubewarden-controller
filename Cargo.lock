@@ -957,9 +957,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "clap-markdown"
-version = "0.2.0"
-source = "git+https://github.com/jvanz/clap-markdown?rev=2f4dcb0e131db8d1d1c786e1c91adfc2ec2c9480#2f4dcb0e131db8d1d1c786e1c91adfc2ec2c9480"
+name = "clap-documentation"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7ae1e9d21ecf24ca8403c144408061db065bf98350ede6e77e7050eaf5c8b53"
 dependencies = [
  "clap",
 ]
@@ -3602,7 +3603,7 @@ dependencies = [
  "assert_cmd",
  "backon",
  "clap",
- "clap-markdown",
+ "clap-documentation",
  "clap_complete",
  "color-print",
  "directories",
@@ -4843,7 +4844,7 @@ dependencies = [
  "axum-server",
  "backon",
  "clap",
- "clap-markdown",
+ "clap-documentation",
  "daemonize",
  "futures",
  "hex",
