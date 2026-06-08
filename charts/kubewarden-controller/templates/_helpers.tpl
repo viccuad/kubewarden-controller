@@ -49,20 +49,57 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
-Common labels
+Base labels shared by every resource in the chart.
+Does not include managed-by (varies: Helm vs kubewarden-controller)
+or component (varies per resource type).
 */}}
-{{- define "kubewarden-controller.labels" -}}
+{{- define "kubewarden-controller.commonLabels" -}}
 helm.sh/chart: {{ include "kubewarden-controller.chart" . }}
 {{ include "kubewarden-controller.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- else }}
+app.kubernetes.io/version: {{ .Chart.Version | quote }}
 {{- end }}
-app.kubernetes.io/component: controller
-app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: kubewarden
 {{- if .Values.additionalLabels }}
 {{ toYaml .Values.additionalLabels }}
 {{- end }}
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "kubewarden-controller.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "kubewarden-controller.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Labels for defaults resources (PolicyServer RBAC, hook Jobs, etc.)
+No component label — callers add it inline when needed.
+*/}}
+{{- define "kubewarden-defaults.labels" -}}
+{{ include "kubewarden-controller.commonLabels" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Labels for controller resources (Deployment, Services, RBAC, etc.)
+*/}}
+{{- define "kubewarden-controller.labels" -}}
+{{ include "kubewarden-controller.commonLabels" . }}
+app.kubernetes.io/component: controller
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Labels for embedded default ClusterAdmissionPolicy resources.
+*/}}
+{{- define "kubewarden-controller.policyLabels" -}}
+{{ include "kubewarden-controller.commonLabels" . }}
+app.kubernetes.io/component: policy
+app.kubernetes.io/managed-by: kubewarden-controller
 {{- end }}
 
 {{/*
@@ -80,13 +117,6 @@ Print the image pull secrets in the expected format (an array of objects with on
     {{- toYaml $imagePullSecrets }}
 {{- end }}
 
-{{/*
-Selector labels
-*/}}
-{{- define "kubewarden-controller.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "kubewarden-controller.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
 
 {{/*
 Annotations
@@ -219,30 +249,6 @@ controller replicas on the same node.
 {{- end -}}
 
 {{/*
-Validate that hostNetwork and telemetry sidecar mode are not both enabled.
-They are incompatible because multiple OTel sidecars on the same node would
-cause port conflicts in host-network mode.
-*/}}
-{{/*
-Labels for defaults resources (PolicyServer RBAC, etc.)
-Differs from kubewarden-controller.labels: no component label, AppVersion fallback to Chart.Version.
-*/}}
-{{- define "kubewarden-defaults.labels" -}}
-helm.sh/chart: {{ include "kubewarden-controller.chart" . }}
-{{ include "kubewarden-controller.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- else }}
-app.kubernetes.io/version: {{ .Chart.Version | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: kubewarden
-{{- if .Values.additionalLabels }}
-{{ toYaml .Values.additionalLabels }}
-{{- end }}
-{{- end }}
-
-{{/*
 Annotations for defaults resources.
 */}}
 {{- define "kubewarden-defaults.annotations" -}}
@@ -289,6 +295,11 @@ namespaceSelector:
 {{- end -}}
 {{- end -}}
 
+{{/*
+Validate that hostNetwork and telemetry sidecar mode are not both enabled.
+They are incompatible because multiple OTel sidecars on the same node would
+cause port conflicts in host-network mode.
+*/}}
 {{- define "kubewarden-controller.validateHostNetworkSidecar" -}}
 {{- if and .Values.hostNetwork (eq .Values.telemetry.mode "sidecar") (or .Values.telemetry.metrics .Values.telemetry.tracing) -}}
 {{- fail "hostNetwork and telemetry.mode=sidecar are incompatible: OpenTelemetry sidecar injection causes port conflicts in host-network mode. Use telemetry.mode=custom with a remote collector instead." -}}

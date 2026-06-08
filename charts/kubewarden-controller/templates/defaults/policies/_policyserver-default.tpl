@@ -4,7 +4,7 @@ kind: PolicyServer
 metadata:
   name: default
   labels:
-    app.kubernetes.io/part-of: kubewarden
+    {{- include "kubewarden-controller.commonLabels" . | nindent 4 }}
     app.kubernetes.io/component: policy-server
     app.kubernetes.io/managed-by: kubewarden-controller
   annotations:

@@ -4,9 +4,7 @@ metadata:
   name: "{{ .Release.Name }}"
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
-    app.kubernetes.io/instance: {{ .Release.Name | quote }}
-    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    {{- include "kubewarden-defaults.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "1"
@@ -17,9 +15,7 @@ spec:
     metadata:
       name: "{{ .Release.Name }}"
       labels:
-        app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
-        app.kubernetes.io/instance: {{ .Release.Name | quote }}
-        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        {{- include "kubewarden-defaults.labels" . | nindent 8 }}
       annotations:
         {{- include "kubewarden-controller.annotations" . | nindent 8 }}
     spec:

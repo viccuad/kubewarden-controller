@@ -4,9 +4,7 @@ kind: ClusterAdmissionPolicy
 metadata:
   name: {{ .Values.recommendedPolicies.hostNamespacePolicy.name }}
   labels:
-    app.kubernetes.io/part-of: kubewarden
-    app.kubernetes.io/component: policy
-    app.kubernetes.io/managed-by: kubewarden-controller
+    {{- include "kubewarden-controller.policyLabels" . | nindent 4 }}
   annotations:
     io.kubewarden.policy.severity: medium
     io.kubewarden.policy.category: PSP
