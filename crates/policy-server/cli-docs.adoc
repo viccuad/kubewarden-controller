@@ -16,7 +16,7 @@ This document contains the help content for the `policy-server` command-line pro
 
 === *Subcommands:*
 
-* `docs` — Generates the AsciiDoc documentation for policy-server commands
+* `docs` — Generates documentation for policy-server commands. The output format is determined by the file extension: .md for Markdown, AsciiDoc otherwise
 
 === *Options:*
 
@@ -79,7 +79,7 @@ Default value: `sigstore-data`
 [[policy-server-docs]]
 == `policy-server docs`
 
-Generates the AsciiDoc documentation for policy-server commands
+Generates documentation for policy-server commands. The output format is determined by the file extension: .md for Markdown, AsciiDoc otherwise
 
 *Usage:* `policy-server docs --output <FILE>`
 

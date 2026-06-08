@@ -40,7 +40,7 @@ Tool to manage Kubewarden policies
 * `bench` — Benchmarks a Kubewarden policy
 * `completions` — Generate shell completions
 * `digest` — Fetch digest from the OCI manifest of a policy
-* `docs` — Generates the AsciiDoc documentation for kwctl commands
+* `docs` — Generates documentation for kwctl commands. The output format is determined by the file extension: .md for Markdown, AsciiDoc otherwise
 * `info` — Display system information
 * `inspect` — Inspect Kubewarden policy
 * `load` — load policies from a tar.gz file
@@ -194,7 +194,7 @@ Fetch digest from the OCI manifest of a policy
 [[kwctl-docs]]
 == `kwctl docs`
 
-Generates the AsciiDoc documentation for kwctl commands
+Generates documentation for kwctl commands. The output format is determined by the file extension: .md for Markdown, AsciiDoc otherwise
 
 *Usage:* `kwctl docs --output <FILE>`
 
