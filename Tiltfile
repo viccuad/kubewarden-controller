@@ -48,10 +48,6 @@ k8s_resource(
         'clusteradmissionpolicies.policies.kubewarden.io:CustomResourceDefinition',
         'admissionpolicygroups.policies.kubewarden.io:CustomResourceDefinition',
         'clusteradmissionpolicygroups.policies.kubewarden.io:CustomResourceDefinition',
-        'clusterreports.openreports.io:CustomResourceDefinition',
-        'reports.openreports.io:CustomResourceDefinition',
-        'clusterpolicyreports.wgpolicyk8s.io:CustomResourceDefinition',
-        'policyreports.wgpolicyk8s.io:CustomResourceDefinition',
     ],
 )
 
