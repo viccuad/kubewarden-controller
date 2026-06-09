@@ -82,3 +82,61 @@ tests:
       - equal:
           path: metadata.annotations["custom-annotation"]
           value: "test-annotation"
+
+  # The two tests below guard against drift between the Makefile sed in the
+  # `manifests` target (which injects {{ include "adm-controller.labels" . }})
+  # and the named templates in _helpers.tpl. They assert on label keys taken
+  # from the deepest link of the helper chain (commonLabels -> selectorLabels),
+  # so any sed change that swaps to a different but valid helper still trips
+  # the test.
+  - it: "regression: ClusterRole labels must come from the adm-controller.labels helper chain"
+    documentSelector:
+      path: kind
+      value: ClusterRole
+    asserts:
+      # Keys defined directly in adm-controller.labels
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: controller
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      # Keys that only appear if adm-controller.commonLabels was inlined
+      - isNotNullOrEmpty:
+          path: metadata.labels["helm.sh/chart"]
+      - equal:
+          path: metadata.labels["app.kubernetes.io/part-of"]
+          value: kubewarden
+      - isNotNullOrEmpty:
+          path: metadata.labels["app.kubernetes.io/version"]
+      # Keys that only appear if adm-controller.selectorLabels was inlined
+      - isNotNullOrEmpty:
+          path: metadata.labels["app.kubernetes.io/name"]
+      - isNotNullOrEmpty:
+          path: metadata.labels["app.kubernetes.io/instance"]
+
+  - it: "regression: Role labels must come from the adm-controller.labels helper chain"
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      # Keys defined directly in adm-controller.labels
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: controller
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      # Keys that only appear if adm-controller.commonLabels was inlined
+      - isNotNullOrEmpty:
+          path: metadata.labels["helm.sh/chart"]
+      - equal:
+          path: metadata.labels["app.kubernetes.io/part-of"]
+          value: kubewarden
+      - isNotNullOrEmpty:
+          path: metadata.labels["app.kubernetes.io/version"]
+      # Keys that only appear if adm-controller.selectorLabels was inlined
+      - isNotNullOrEmpty:
+          path: metadata.labels["app.kubernetes.io/name"]
+      - isNotNullOrEmpty:
+          path: metadata.labels["app.kubernetes.io/instance"]

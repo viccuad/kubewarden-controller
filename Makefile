@@ -169,7 +169,7 @@ manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefin
 			output:webhook:artifacts:config=charts
 	echo "# to be merged manually into kubewarden-controller/templates/webhooks.yaml" | cat - charts/manifests.yaml > temp && mv temp charts/manifests.yaml
 	mv charts/manifests.yaml charts/generated-webhooks-manifests.yaml
-	sed -i '/^metadata:/a\  labels:\n    {{- include "kubewarden-controller.labels" . | nindent 4 }}\n  annotations:\n    {{- include "kubewarden-controller.annotations" . | nindent 4 }}' charts/kubewarden-controller/templates/controller/controller-rbac-roles.yaml
+	sed -i '/^metadata:/a\  labels:\n    {{- include "adm-controller.labels" . | nindent 4 }}\n  annotations:\n    {{- include "adm-controller.annotations" . | nindent 4 }}' charts/kubewarden-controller/templates/controller/controller-rbac-roles.yaml
 	sed -i 's/  namespace: kubewarden/  namespace: {{ .Release.Namespace }}/' charts/kubewarden-controller/templates/controller/controller-rbac-roles.yaml
 
 .PHONY: generate-chart
