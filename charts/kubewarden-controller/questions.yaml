@@ -229,16 +229,6 @@ questions:
     description: |
       Install the OpenReports CRDs via the openreports subchart.
     group: "CRD Settings"
-  # Defaults:
-  - variable: "defaultConfigMapName"
-    type: string
-    default: "kubewarden-defaults"
-    required: false
-    label: Defaults ConfigMap name
-    description: |
-      Name of the ConfigMap used by the controller to apply default resources
-      (PolicyServer, recommended policies).
-    group: "Defaults"
   # Default PolicyServer:
   - variable: "policyServer.enabled"
     type: boolean

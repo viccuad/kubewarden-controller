@@ -111,9 +111,6 @@
         "crdVersion": {
             "type": "string"
         },
-        "defaultConfigMapName": {
-            "type": "string"
-        },
         "fullnameOverride": {
             "type": "string"
         },

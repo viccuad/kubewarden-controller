@@ -56,6 +56,7 @@ helm install kubewarden kubewarden/kubewarden-controller -n kubewarden
 ```
 
 This creates:
+
 - CRDs in `templates/crds/` (with `helm.sh/resource-policy: keep` to prevent deletion on uninstall)
 - The controller
 - The default PolicyServer and recommended policies (if enabled)
@@ -81,15 +82,13 @@ The controller's DefaultsApplier will overwrite any managed defaults with the co
 The chart can deploy a default PolicyServer and recommended policies managed by the controller:
 
 ```yaml
-defaultConfigMapName: kubewarden-defaults
-
 policyServer:
   enabled: true
   replicaCount: 1
   # ... (see values.yaml for full options)
 
 recommendedPolicies:
-  enabled: false  # Disabled by default
+  enabled: false # Disabled by default
   defaultPolicyMode: "monitor"
   allowPrivilegeEscalationPolicy:
     # ... (see values.yaml)
@@ -100,6 +99,7 @@ When `policyServer.enabled: false` and `recommendedPolicies.enabled: false`, the
 ### CRDs
 
 CRDs are installed in `templates/crds/` with the `helm.sh/resource-policy: keep` annotation. This means:
+
 - `helm upgrade` will update CRDs
 - `helm uninstall` will **not** delete CRDs (preventing catastrophic cascade-deletion of all cluster resources)
 
@@ -120,11 +120,13 @@ helm uninstall kubewarden -n kubewarden
 ```
 
 This removes:
+
 - The controller deployment
 - Managed defaults (resources with `kubewarden.io/managed-by=kubewarden-controller-defaults` label)
 - ConfigMaps, Secrets, Services
 
 It does **not** remove:
+
 - CRDs (due to `helm.sh/resource-policy: keep`)
 - User-managed PolicyServers and policies
 

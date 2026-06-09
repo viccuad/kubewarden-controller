@@ -3,7 +3,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.defaultConfigMapName | default "kubewarden-defaults" }}
+  name:  "kubewarden-defaults"
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kubewarden-controller.labels" . | nindent 4 }}
