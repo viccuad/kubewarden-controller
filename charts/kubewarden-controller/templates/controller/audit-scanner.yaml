@@ -5,9 +5,9 @@ metadata:
   name: {{ include "audit-scanner.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "kubewarden-controller.labels" . | nindent 4 }}
+    {{- include "adm-controller.labels" . | nindent 4 }}
   annotations:
-    {{- include "kubewarden-controller.annotations" . | nindent 4 }}
+    {{- include "adm-controller.annotations" . | nindent 4 }}
 spec:
   schedule: {{ .Values.auditScanner.cronJob.schedule | quote }}
   concurrencyPolicy: Forbid

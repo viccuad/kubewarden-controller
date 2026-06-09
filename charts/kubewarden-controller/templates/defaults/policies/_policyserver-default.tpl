@@ -4,11 +4,11 @@ kind: PolicyServer
 metadata:
   name: default
   labels:
-    {{- include "kubewarden-controller.commonLabels" . | nindent 4 }}
+    {{- include "adm-controller.commonLabels" . | nindent 4 }}
     app.kubernetes.io/component: policy-server
     app.kubernetes.io/managed-by: kubewarden-controller
   annotations:
-    {{- include "kubewarden-defaults.annotations" . | nindent 4 }}
+    {{- include "adm-controller.defaults.annotations" . | nindent 4 }}
   finalizers:
     - kubewarden.io/finalizer
 spec:
@@ -21,7 +21,7 @@ spec:
   {{- if .Values.policyServer.maxUnavailable }}
   maxUnavailable: {{ .Values.policyServer.maxUnavailable }}
   {{- end }}
-  {{- $affinity := include "kubewarden-defaults.effectiveAffinity" . -}}
+  {{- $affinity := include "adm-controller.defaults.effectiveAffinity" . -}}
   {{- if $affinity }}
   affinity: {{ $affinity | nindent 4 }}
   {{- end }}

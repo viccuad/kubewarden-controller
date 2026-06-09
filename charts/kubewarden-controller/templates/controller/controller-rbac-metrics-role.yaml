@@ -8,9 +8,9 @@ kind: ClusterRole
 metadata:
   name: kubewarden-controller-metrics-reader
   labels:
-    {{- include "kubewarden-controller.labels" . | nindent 4 }}
+    {{- include "adm-controller.labels" . | nindent 4 }}
   annotations:
-    {{- include "kubewarden-controller.annotations" . | nindent 4 }}
+    {{- include "adm-controller.annotations" . | nindent 4 }}
 rules:
 - nonResourceURLs:
   - /metrics

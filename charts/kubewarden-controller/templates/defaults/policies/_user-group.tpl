@@ -4,11 +4,11 @@ kind: ClusterAdmissionPolicy
 metadata:
   name: {{ .Values.recommendedPolicies.userGroupPolicy.name }}
   labels:
-    {{- include "kubewarden-controller.policyLabels" . | nindent 4 }}
+    {{- include "adm-controller.policyLabels" . | nindent 4 }}
   annotations:
     io.kubewarden.policy.severity: medium
     io.kubewarden.policy.category: PSP
-    {{- include "kubewarden-defaults.annotations" . | nindent 4 }}
+    {{- include "adm-controller.defaults.annotations" . | nindent 4 }}
 spec:
   mode: {{ .Values.recommendedPolicies.defaultPolicyMode | default "monitor" }}
   failurePolicy: {{ include "policy_failure_policy" . | trim }}

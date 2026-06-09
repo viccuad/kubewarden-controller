@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "kubewarden-controller.name" -}}
+{{- define "adm-controller.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "kubewarden-controller.fullname" -}}
+{{- define "adm-controller.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -44,7 +44,7 @@ the job Pods.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "kubewarden-controller.chart" -}}
+{{- define "adm-controller.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -53,9 +53,9 @@ Base labels shared by every resource in the chart.
 Does not include managed-by (varies: Helm vs kubewarden-controller)
 or component (varies per resource type).
 */}}
-{{- define "kubewarden-controller.commonLabels" -}}
-helm.sh/chart: {{ include "kubewarden-controller.chart" . }}
-{{ include "kubewarden-controller.selectorLabels" . }}
+{{- define "adm-controller.commonLabels" -}}
+helm.sh/chart: {{ include "adm-controller.chart" . }}
+{{ include "adm-controller.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- else }}
@@ -70,8 +70,8 @@ app.kubernetes.io/part-of: kubewarden
 {{/*
 Selector labels
 */}}
-{{- define "kubewarden-controller.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "kubewarden-controller.name" . }}
+{{- define "adm-controller.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "adm-controller.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
@@ -79,16 +79,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Labels for defaults resources (PolicyServer RBAC, hook Jobs, etc.)
 No component label — callers add it inline when needed.
 */}}
-{{- define "kubewarden-defaults.labels" -}}
-{{ include "kubewarden-controller.commonLabels" . }}
+{{- define "adm-controller.defaults.labels" -}}
+{{ include "adm-controller.commonLabels" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
 Labels for controller resources (Deployment, Services, RBAC, etc.)
 */}}
-{{- define "kubewarden-controller.labels" -}}
-{{ include "kubewarden-controller.commonLabels" . }}
+{{- define "adm-controller.labels" -}}
+{{ include "adm-controller.commonLabels" . }}
 app.kubernetes.io/component: controller
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
@@ -96,8 +96,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Labels for embedded default ClusterAdmissionPolicy resources.
 */}}
-{{- define "kubewarden-controller.policyLabels" -}}
-{{ include "kubewarden-controller.commonLabels" . }}
+{{- define "adm-controller.policyLabels" -}}
+{{ include "adm-controller.commonLabels" . }}
 app.kubernetes.io/component: policy
 app.kubernetes.io/managed-by: kubewarden-controller
 {{- end }}
@@ -121,7 +121,7 @@ Print the image pull secrets in the expected format (an array of objects with on
 {{/*
 Annotations
 */}}
-{{- define "kubewarden-controller.annotations" -}}
+{{- define "adm-controller.annotations" -}}
 {{- if .Values.additionalAnnotations }}
 {{ toYaml .Values.additionalAnnotations }}
 {{- end }}
@@ -130,8 +130,8 @@ Annotations
 {{/*
 Create the name of the service account to use for kubewarden-controller
 */}}
-{{- define "kubewarden-controller.serviceAccountName" -}}
-{{- include "kubewarden-controller.fullname" . }}
+{{- define "adm-controller.serviceAccountName" -}}
+{{- include "adm-controller.fullname" . }}
 {{- end }}
 
 {{/*
@@ -139,7 +139,7 @@ Create the webhook service name, ensuring it doesn't exceed 63 characters.
 The service name is fullname + "-webhook-service" (16 chars), so we need to
 limit fullname to 47 chars to stay under the 63 char limit.
 */}}
-{{- define "kubewarden-controller.webhookServiceName" -}}
+{{- define "adm-controller.webhookServiceName" -}}
 {{- if .Values.fullnameOverride }}
 {{- printf "%s-webhook-service" (.Values.fullnameOverride | trunc 47 | trimSuffix "-") }}
 {{- else }}
@@ -240,7 +240,7 @@ NOTE: When hostNetwork is enabled, users are responsible for setting
 appropriate podAntiAffinity rules to prevent host-port conflicts between
 controller replicas on the same node.
 */}}
-{{- define "kubewarden-controller.effectiveAffinity" -}}
+{{- define "adm-controller.effectiveAffinity" -}}
 {{- if .Values.affinity -}}
   {{- toYaml .Values.affinity -}}
 {{- else if .Values.global.affinity -}}
@@ -251,7 +251,7 @@ controller replicas on the same node.
 {{/*
 Annotations for defaults resources.
 */}}
-{{- define "kubewarden-defaults.annotations" -}}
+{{- define "adm-controller.defaults.annotations" -}}
 {{- if .Values.additionalAnnotations }}
 {{ toYaml .Values.additionalAnnotations }}
 {{- end }}
@@ -287,7 +287,7 @@ namespaceSelector:
 {{- end }}
 {{- end -}}
 
-{{- define "kubewarden-defaults.effectiveAffinity" -}}
+{{- define "adm-controller.defaults.effectiveAffinity" -}}
 {{- if .Values.policyServer.affinity -}}
   {{- toYaml .Values.policyServer.affinity -}}
 {{- else if .Values.global.affinity -}}
@@ -300,7 +300,7 @@ Validate that hostNetwork and telemetry sidecar mode are not both enabled.
 They are incompatible because multiple OTel sidecars on the same node would
 cause port conflicts in host-network mode.
 */}}
-{{- define "kubewarden-controller.validateHostNetworkSidecar" -}}
+{{- define "adm-controller.validateHostNetworkSidecar" -}}
 {{- if and .Values.hostNetwork (eq .Values.telemetry.mode "sidecar") (or .Values.telemetry.metrics .Values.telemetry.tracing) -}}
 {{- fail "hostNetwork and telemetry.mode=sidecar are incompatible: OpenTelemetry sidecar injection causes port conflicts in host-network mode. Use telemetry.mode=custom with a remote collector instead." -}}
 {{- end -}}
