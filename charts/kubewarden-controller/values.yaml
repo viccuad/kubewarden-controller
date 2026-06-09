@@ -529,6 +529,7 @@ recommendedPolicies:
   # Additional namespaces that recommended policies will not apply to:
   skipAdditionalNamespaces: []
   defaultPolicyMode: "monitor"
+  
   allowPrivilegeEscalationPolicy:
     module:
       repository: "kubewarden/policies/allow-privilege-escalation-psp"
@@ -536,6 +537,7 @@ recommendedPolicies:
     name: "no-privilege-escalation"
     settings:
       allowPrivilegeEscalation: false
+      
   hostNamespacePolicy:
     module:
       repository: "kubewarden/policies/host-namespaces-psp"
@@ -546,6 +548,7 @@ recommendedPolicies:
       allow_host_network: false
       allow_host_pid: false
       allow_host_ports: []
+      
   podPrivilegedPolicy:
     module:
       repository: "kubewarden/policies/pod-privileged"
@@ -554,6 +557,7 @@ recommendedPolicies:
     settings:
       skip_init_containers: false
       skip_ephemeral_containers: false
+      
   userGroupPolicy:
     module:
       repository: "kubewarden/policies/user-group-psp"
@@ -567,6 +571,7 @@ recommendedPolicies:
       supplemental_groups:
         rule: "RunAsAny"
       validate_container_image_configuration: false
+      
   hostPathsPolicy:
     module:
       repository: "kubewarden/policies/hostpaths-psp"
@@ -576,6 +581,7 @@ recommendedPolicies:
       allowedHostPaths:
         - pathPrefix: "/tmp"
           readOnly: true
+          
   capabilitiesPolicy:
     module:
       repository: "kubewarden/policies/capabilities-psp"
