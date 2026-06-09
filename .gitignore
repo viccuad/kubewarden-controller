@@ -46,4 +46,3 @@ fulcio.pem
 rekor.pub
 tsa.pem
 ctfe.pub
-charts/kubewarden-admission-controller/charts/
