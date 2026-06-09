@@ -21,20 +21,22 @@ If you're currently running the legacy three-chart setup (`kubewarden-crds`, `ku
 ### Prerequisites
 
 - Access to your cluster with `kubectl` and `helm`
-- Backup tool or `kubectl` configured
+- [`yq`](https://github.com/mikefarah/yq) installed locally (used to sanitize the backup output)
 
 ### Migration Steps
 
 #### 1. Backup All Policies and PolicyServers
 
-Uninstalling `kubewarden-crds` cascade-deletes **all** custom resources, so every policy and PolicyServer must be backed up:
+Uninstalling `kubewarden-crds` cascade-deletes **all** custom resources, so every policy and PolicyServer must be backed up. The `yq` filter strips cluster-specific metadata (`uid`, `resourceVersion`, `managedFields`, `status`, …) so that the manifests can be re-applied cleanly later:
 
 ```sh
-kubectl get clusteradmissionpolicies -A -o yaml > clusteradmissionpolicies-backup.yaml
-kubectl get admissionpolicies -A -o yaml > admissionpolicies-backup.yaml
-kubectl get clusteradmissionpolicygroups -A -o yaml > clusteradmissionpolicygroups-backup.yaml
-kubectl get admissionpolicygroups -A -o yaml > admissionpolicygroups-backup.yaml
-kubectl get policyservers -o yaml > policyservers-backup.yaml
+FILTER='del(.items[].metadata.uid, .items[].metadata.resourceVersion, .items[].metadata.creationTimestamp, .items[].metadata.generation, .items[].metadata.managedFields, .items[].status)'
+
+kubectl get clusteradmissionpolicies -A -o yaml | yq "$FILTER" > clusteradmissionpolicies-backup.yaml
+kubectl get admissionpolicies -A -o yaml | yq "$FILTER" > admissionpolicies-backup.yaml
+kubectl get clusteradmissionpolicygroups -A -o yaml | yq "$FILTER" > clusteradmissionpolicygroups-backup.yaml
+kubectl get admissionpolicygroups -A -o yaml | yq "$FILTER" > admissionpolicygroups-backup.yaml
+kubectl get policyservers -A -o yaml | yq "$FILTER" > policyservers-backup.yaml
 ```
 
 #### 2. Uninstall Old Charts
@@ -55,11 +57,11 @@ This removes all CRDs and cascades deletion of all CRs (PolicyServers and polici
 helm install kubewarden kubewarden/kubewarden-controller -n kubewarden
 ```
 
-This creates:
+This defines:
 
-- CRDs in `templates/crds/` (with `helm.sh/resource-policy: keep` to prevent deletion on uninstall)
-- The controller
-- The default PolicyServer and recommended policies (if enabled)
+- CRDs. These are created with the `helm.sh/resource-policy: keep` to prevent deletion on uninstall.
+- The actual adm-controller
+- If enabled by `values.yaml`, the default Policy Server and the recommended policies
 
 #### 4. Restore User Policies
 
@@ -73,13 +75,11 @@ kubectl apply -f clusteradmissionpolicygroups-backup.yaml
 kubectl apply -f admissionpolicygroups-backup.yaml
 ```
 
-The controller's DefaultsApplier will overwrite any managed defaults with the correct ownership labels on the next reconciliation.
-
 ## Configuration
 
 ### Defaults
 
-The chart can deploy a default PolicyServer and recommended policies managed by the controller:
+The chart can deploy a default Policy Server and a series of recommended policies:
 
 ```yaml
 policyServer:
@@ -94,24 +94,15 @@ recommendedPolicies:
     # ... (see values.yaml)
 ```
 
-When `policyServer.enabled: false` and `recommendedPolicies.enabled: false`, the defaults ConfigMap is not rendered and the controller cleans up all managed resources.
+**Note:**  these resources are owned and reconciled by the adm-controller.
+Manual changes are going to be reverted. Also, changing this value to `false` leads to a cleanup of all these managed resources.
 
 ### CRDs
 
-CRDs are installed in `templates/crds/` with the `helm.sh/resource-policy: keep` annotation. This means:
+CRDs are installed with the `helm.sh/resource-policy: keep` annotation. This means:
 
 - `helm upgrade` will update CRDs
 - `helm uninstall` will **not** delete CRDs (preventing catastrophic cascade-deletion of all cluster resources)
-
-To fully remove CRDs after uninstall:
-
-```sh
-kubectl delete crd policyservers.policies.kubewarden.io
-kubectl delete crd clusteradmissionpolicies.policies.kubewarden.io
-kubectl delete crd admissionpolicies.policies.kubewarden.io
-kubectl delete crd clusteradmissionpolicygroups.policies.kubewarden.io
-kubectl delete crd admissionpolicygroups.policies.kubewarden.io
-```
 
 ## Uninstall
 
@@ -130,12 +121,17 @@ It does **not** remove:
 - CRDs (due to `helm.sh/resource-policy: keep`)
 - User-managed PolicyServers and policies
 
-## Version
+To fully remove CRDs after uninstall:
 
-- Chart version: 6.0.0-alpha.1
-- App version: v2.0.0-alpha.1
+```sh
+kubectl delete crd policyservers.policies.kubewarden.io
+kubectl delete crd clusteradmissionpolicies.policies.kubewarden.io
+kubectl delete crd admissionpolicies.policies.kubewarden.io
+kubectl delete crd clusteradmissionpolicygroups.policies.kubewarden.io
+kubectl delete crd admissionpolicygroups.policies.kubewarden.io
+```
 
 ## References
 
 - [Kubewarden Documentation](https://docs.kubewarden.io/)
-- [RFC 0026: Unified Admission Controller Chart](https://github.com/kubewarden/rfc/blob/main/rfc/0026-unified-admission-controller-chart.md)
+- [Releases](https://github.com/kubewarden/adm-controller/releases)
