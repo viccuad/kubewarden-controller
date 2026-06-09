@@ -520,6 +520,7 @@ mod tests {
                 assert_eq!(custom_rejection_message, Some("foo".to_string()));
                 assert_eq!(settings, expected_settings);
                 assert!(matches!(ctx_aware_cfg, ContextAwareConfiguration::NoAccess));
+                assert!(allowed_host_capabilities.is_empty());
             }
             _ => panic!("Expected Individual PolicyDefinition"),
         }
@@ -610,6 +611,7 @@ mod tests {
                     ctx_aware_cfg,
                     ContextAwareConfiguration::AllowList(expected_context_aware_resources)
                 );
+                assert!(allowed_host_capabilities.is_empty());
             }
             _ => panic!("Expected Individual PolicyDefinition"),
         }
