@@ -18,8 +18,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -28,9 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -59,41 +55,19 @@ const (
 	deploymentsNamespace = "kubewarden-integration-tests"
 )
 
-// loadKubewardenCRDsFromChart loads the Kubewarden admission controller CRDs
-// from the Helm chart templates directory.
-func loadKubewardenCRDsFromChart() ([]*apiextensionsv1.CustomResourceDefinition, error) {
-	chartCRDsPath := filepath.Join("..", "..", "charts", "kubewarden-controller", "templates", "crds")
-
-	// List of Kubewarden admission controller CRD files (excluding policy reports)
-	crdFiles := []string{
-		"policies.kubewarden.io_admissionpolicies.yaml",
-		"policies.kubewarden.io_admissionpolicygroups.yaml",
-		"policies.kubewarden.io_clusteradmissionpolicies.yaml",
-		"policies.kubewarden.io_clusteradmissionpolicygroups.yaml",
-		"policies.kubewarden.io_policyservers.yaml",
+// kubewardenCRDPaths returns the paths to the Kubewarden admission controller
+// CRD files in the Helm chart. The imported policy-report CRDs are excluded
+// because they are wrapped in Helm conditionals and cannot be parsed as plain
+// YAML by envtest.
+func kubewardenCRDPaths() []string {
+	dir := filepath.Join("..", "..", "charts", "kubewarden-controller", "templates", "crds")
+	return []string{
+		filepath.Join(dir, "policies.kubewarden.io_admissionpolicies.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_admissionpolicygroups.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_clusteradmissionpolicies.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_clusteradmissionpolicygroups.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_policyservers.yaml"),
 	}
-
-	var crds []*apiextensionsv1.CustomResourceDefinition
-
-	for _, filename := range crdFiles {
-		crdPath := filepath.Join(chartCRDsPath, filename)
-
-		// Read the CRD file
-		data, err := os.ReadFile(crdPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read CRD file %s: %w", filename, err)
-		}
-
-		// Decode YAML to CRD object
-		crd := &apiextensionsv1.CustomResourceDefinition{}
-		if err := yaml.Unmarshal(data, crd); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal CRD from %s: %w", filename, err)
-		}
-
-		crds = append(crds, crd)
-	}
-
-	return crds, nil
 }
 
 func TestAPIs(t *testing.T) {
@@ -108,13 +82,10 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	var ctx context.Context
 	ctx, cancel := context.WithCancel(context.TODO())
 
-	// Load CRDs from the Helm chart
-	kubewardenCRDs, err := loadKubewardenCRDsFromChart()
-	Expect(err).NotTo(HaveOccurred(), "failed to load Kubewarden CRDs from Helm chart")
-	Expect(kubewardenCRDs).To(HaveLen(5), "expected 5 Kubewarden admission controller CRDs")
-
 	testEnv := &envtest.Environment{
-		CRDs: kubewardenCRDs,
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Paths: kubewardenCRDPaths(),
+		},
 	}
 
 	restConfig, err := testEnv.Start()
