@@ -213,7 +213,7 @@ questions:
     group: "OpenTelemetry"
     show_if: "telemetry.mode=custom && telemetry.custom.insecure=false"
   # CRD Settings:
-  - variable: "reportCRDs.installPolicyReportCRDs"
+  - variable: "installPolicyReportCRDs"
     type: boolean
     default: false
     required: false
@@ -221,7 +221,7 @@ questions:
     description: |
       Install the PolicyReport and ClusterPolicyReport CRDs.
     group: "CRD Settings"
-  - variable: "reportCRDs.installOpenReportsCRDs"
+  - variable: "installOpenReportsCRDs"
     type: boolean
     default: true
     required: false

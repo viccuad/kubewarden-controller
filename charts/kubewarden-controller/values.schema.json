@@ -159,6 +159,13 @@
         "imagePullSecrets": {
             "type": "array"
         },
+        "installOpenReportsCRDs": {
+            "type": "boolean"
+        },
+        "installPolicyReportCRDs": {
+            "deprecated": true,
+            "type": "boolean"
+        },
         "logLevel": {
             "type": "string"
         },
@@ -672,17 +679,6 @@
         },
         "replicas": {
             "type": "integer"
-        },
-        "reportCRDs": {
-            "type": "object",
-            "properties": {
-                "installOpenReportsCRDs": {
-                    "type": "boolean"
-                },
-                "installPolicyReportCRDs": {
-                    "type": "boolean"
-                }
-            }
         },
         "resources": {
             "type": "object",
