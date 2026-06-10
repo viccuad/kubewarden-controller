@@ -14,7 +14,10 @@ helm install kubewarden kubewarden/kubewarden-controller -n kubewarden --create-
 
 ## Migration from Three-Chart Setup
 
-If you're currently running the legacy three-chart setup (`kubewarden-crds`, `kubewarden-controller`, `kubewarden-defaults`), follow these steps to migrate to the unified chart.
+If you're currently running the legacy three-chart setup (`kubewarden-crds`,
+`kubewarden-controller`, `kubewarden-defaults`) released until Kubewarden
+admission controller version 1.36, follow these steps to migrate to the unified
+chart released on version 1.37.
 
 **⚠️ Important**: There will be a brief window during migration where no admission control is active. Plan accordingly.
 
@@ -94,7 +97,7 @@ recommendedPolicies:
     # ... (see values.yaml)
 ```
 
-**Note:**  these resources are owned and reconciled by the adm-controller.
+**Note:** these resources are owned and reconciled by the adm-controller.
 Manual changes are going to be reverted. Also, changing this value to `false` leads to a cleanup of all these managed resources.
 
 ### CRDs
