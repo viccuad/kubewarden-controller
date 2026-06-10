@@ -293,9 +293,30 @@
                     "type": "object"
                 },
                 "namespacedPoliciesCapabilities": {
-                    "type": "array",
+                    "type": [
+                        "array",
+                        "null"
+                    ],
                     "items": {
-                        "type": "string"
+                        "anyOf": [
+                            {
+                                "description": "Global wildcard",
+                                "const": "*"
+                            },
+                            {
+                                "description": "Category wildcard: \u003ccategory\u003e/*",
+                                "pattern": "^[a-z0-9_-]+/\\*$"
+                            },
+                            {
+                                "description": "Sub-category wildcard: \u003ccategory\u003e/\u003cpath...\u003e/*",
+                                "pattern": "^[a-z0-9_-]+(/[a-z0-9_-]+)+/\\*$"
+                            },
+                            {
+                                "description": "Fully-qualified capability path: \u003ccategory\u003e/\u003cpath...\u003e",
+                                "pattern": "^[a-z0-9_-]+(/[a-z0-9_-]+)+$"
+                            }
+                        ],
+                        "minLength": 1
                     }
                 },
                 "permissions": {

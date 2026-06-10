@@ -486,8 +486,8 @@ policyServer:
   # namespacedPoliciesCapabilities:
   #   - "oci/*"
   #   - "net/v1/dns_lookup_host"
-  namespacedPoliciesCapabilities:
-    - "*" # all host capabilities are granted
+  namespacedPoliciesCapabilities: # @schema type:[array, null]
+    - "*" # @schema minLength:1; anyOf: [{description: "Global wildcard", const: "*"}, {description: "Category wildcard: <category>/*", pattern: "^[a-z0-9_-]+/\\*$"}, {description: "Sub-category wildcard: <category>/<path...>/*", pattern: "^[a-z0-9_-]+(/[a-z0-9_-]+)+/\\*$"}, {description: "Fully-qualified capability path: <category>/<path...>", pattern: "^[a-z0-9_-]+(/[a-z0-9_-]+)+$"}]
   # limits and requests, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
   limits: {}
   requests: {}

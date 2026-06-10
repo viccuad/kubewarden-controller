@@ -1,7 +1,7 @@
 CONTROLLER_TOOLS_VERSION := v0.18.0
 ENVTEST_VERSION := release-0.19
 ENVTEST_K8S_VERSION := 1.31.0
-HELM_VALUES_SCHEMA_JSON_VERSION := v2.3.1
+HELM_VALUES_SCHEMA_JSON_VERSION := v2.4.0
 
 CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 ENVTEST ?= go run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
