@@ -1,10 +1,10 @@
 # Kubewarden Admission Controller
 
-Unified Helm chart for deploying the complete Kubewarden admission control stack.
+Helm chart for deploying the Kubewarden admission control stack.
 
-> **Note:** This chart combines what were previously three separate charts:
-> `kubewarden-crds` (CRDs), `kubewarden-controller` (controller), and
-> `kubewarden-defaults` (default PolicyServer and recommended policies).
+> **Note:** This chart replaces the three separate charts that were used
+> previously: `kubewarden-crds`, `kubewarden-controller`, and
+> `kubewarden-defaults`.
 
 ## Installation
 
@@ -12,77 +12,161 @@ Unified Helm chart for deploying the complete Kubewarden admission control stack
 helm install kubewarden kubewarden/kubewarden-controller -n kubewarden --create-namespace
 ```
 
-## Migration from Three-Chart Setup
+## Migration from three-chart setup
 
-If you're currently running the legacy three-chart setup (`kubewarden-crds`,
-`kubewarden-controller`, `kubewarden-defaults`) released until Kubewarden
-admission controller version 1.36, follow these steps to migrate to the unified
-chart released on version 1.37.
+If you are running the legacy three-chart setup (`kubewarden-crds`,
+`kubewarden-controller`, `kubewarden-defaults`), use the migration
+script (`kubewarden-unified-adm-controller-chart-migration.sh`) to
+move to this chart without admission downtime.
 
-**⚠️ Important**: There will be a brief window during migration where no admission control is active. Plan accordingly.
+The migration requires several Helm operations in a specific order:
+adding resource-preservation annotations to the stored release
+manifests, uninstalling the legacy releases without running cleanup
+hooks, then installing the unified chart so it adopts the existing
+resources. The ordering matters because annotations must be in the
+stored manifest (not just on live objects) for Helm to honor them,
+hooks must be skipped or they delete PolicyServers, and the release
+name must match the old one or Kubernetes rejects the update due to
+immutable selectors. Getting any step wrong can delete resources or
+break admission, so the script handles it all and verifies each step.
+
+What survives the migration:
+
+- The five Kubewarden CRDs.
+- Your custom `PolicyServer` instances and policy CRs, along with
+  their `Validating`/`MutatingWebhookConfiguration` objects.
+- The `default` `PolicyServer` and recommended policy CRs (if
+  enabled). The unified chart's DefaultsApplier adopts them in
+  place. The `policy-server-default` Deployment is owned by the
+  `PolicyServer` CR through an owner reference, so as long as the
+  CR survives, the Deployment stays up and admission continues.
+- The `kubewarden-ca` Secret. Already-running policy-server pods
+  stay trusted by the new webhook CA bundles. No TLS rotation
+  happens.
 
 ### Prerequisites
 
-- Access to your cluster with `kubectl` and `helm`
-- [`yq`](https://github.com/mikefarah/yq) installed locally (used to sanitize the backup output)
+- Helm v4+ (needed for Server-Side Apply and post-renderer plugins)
+- kubectl with access to your cluster
+- yq v4 (github.com/mikefarah/yq) for the post-renderer
+- jq for detecting installed chart versions
+- The three legacy releases must be installed in your cluster
 
-### Migration Steps
+### What the script does
 
-#### 1. Backup All Policies and PolicyServers
+The script runs five phases:
 
-Uninstalling `kubewarden-crds` cascade-deletes **all** custom resources, so every policy and PolicyServer must be backed up. The `yq` filter strips cluster-specific metadata (`uid`, `resourceVersion`, `managedFields`, `status`, …) so that the manifests can be re-applied cleanly later:
+1. Preflight: checks that the required tools are available, connects
+   to the cluster, finds the three legacy releases, and warns if
+   they are not at the latest chart version.
+2. Annotation injection: creates a Helm 4 post-renderer plugin that
+   wraps `yq`, then runs `helm upgrade --reuse-values --post-renderer`
+   on each legacy release to write `helm.sh/resource-policy: keep`
+   into the stored release manifests.
+3. Legacy uninstall: runs `helm uninstall --no-hooks` in reverse
+   order. The `--no-hooks` flag skips the controller chart's
+   pre-delete hook, which would otherwise delete all PolicyServers.
+   Resources stay live in the cluster.
+4. Unified chart install: runs `helm install --take-ownership`.
+   Helm 4's Server-Side Apply adopts existing resources, updates
+   their ownership metadata, and removes the legacy keep annotations
+   from chart-rendered resources.
+5. Verification: checks that CRDs are owned by the new release,
+   RBAC resources were adopted in place (UIDs did not change), the
+   controller pod is running, and the DefaultsApplier has labeled
+   the default PolicyServer and recommended policies.
 
-```sh
-FILTER='del(.items[].metadata.uid, .items[].metadata.resourceVersion, .items[].metadata.creationTimestamp, .items[].metadata.generation, .items[].metadata.managedFields, .items[].status)'
-
-kubectl get clusteradmissionpolicies -A -o yaml | yq "$FILTER" > clusteradmissionpolicies-backup.yaml
-kubectl get admissionpolicies -A -o yaml | yq "$FILTER" > admissionpolicies-backup.yaml
-kubectl get clusteradmissionpolicygroups -A -o yaml | yq "$FILTER" > clusteradmissionpolicygroups-backup.yaml
-kubectl get admissionpolicygroups -A -o yaml | yq "$FILTER" > admissionpolicygroups-backup.yaml
-kubectl get policyservers -A -o yaml | yq "$FILTER" > policyservers-backup.yaml
-```
-
-#### 2. Uninstall Old Charts
-
-Uninstall in reverse order:
-
-```sh
-helm uninstall kubewarden-defaults -n kubewarden
-helm uninstall kubewarden-controller -n kubewarden
-helm uninstall kubewarden-crds -n kubewarden
-```
-
-This removes all CRDs and cascades deletion of all CRs (PolicyServers and policies).
-
-#### 3. Install the Unified Chart
-
-```sh
-helm install kubewarden kubewarden/kubewarden-controller -n kubewarden
-```
-
-This defines:
-
-- CRDs. These are created with the `helm.sh/resource-policy: keep` to prevent deletion on uninstall.
-- The actual adm-controller
-- If enabled by `values.yaml`, the default Policy Server and the recommended policies
-
-#### 4. Restore User Policies
-
-Once the default PolicyServer is ready, re-apply all backed-up resources:
+### Running the migration
 
 ```sh
-kubectl apply -f policyservers-backup.yaml
-kubectl apply -f clusteradmissionpolicies-backup.yaml
-kubectl apply -f admissionpolicies-backup.yaml
-kubectl apply -f clusteradmissionpolicygroups-backup.yaml
-kubectl apply -f admissionpolicygroups-backup.yaml
+./kubewarden-unified-adm-controller-chart-migration.sh \
+  --unified-chart kubewarden/kubewarden-controller
 ```
+
+Using a local tarball:
+
+```sh
+./kubewarden-unified-adm-controller-chart-migration.sh \
+  --unified-chart ./kubewarden-controller-6.0.0.tgz
+```
+
+Dry run (no changes applied):
+
+```sh
+./kubewarden-unified-adm-controller-chart-migration.sh \
+  --unified-chart kubewarden/kubewarden-controller --dry-run
+```
+
+Interactive mode (pauses before each destructive step):
+
+```sh
+./kubewarden-unified-adm-controller-chart-migration.sh \
+  --unified-chart kubewarden/kubewarden-controller --interactive
+```
+
+Passing custom values to the unified chart:
+
+```sh
+./kubewarden-unified-adm-controller-chart-migration.sh \
+  --unified-chart kubewarden/kubewarden-controller \
+  --set "image.tag=v2.0.0" \
+  --values ./my-custom-values.yaml
+```
+
+#### Available flags
+
+| Flag | Description |
+|------|-------------|
+| `--unified-chart PATH_OR_NAME` | Required. Local tarball or Helm repo chart name |
+| `--namespace NS` | Namespace of the Kubewarden installation (default: `kubewarden`) |
+| `--kube-context CTX` | Kubernetes context to use (default: current context) |
+| `--repo-name NAME` | Helm repo name (default: `kubewarden`) |
+| `--repo-url URL` | Helm repo URL (default: `https://charts.kubewarden.io`) |
+| `--timeout DURATION` | Timeout for Helm operations (default: `5m`) |
+| `--set KEY=VALUE` | Set a value for the unified chart install (repeatable) |
+| `--values FILE` / `-f FILE` | Values file for the unified chart install (repeatable) |
+| `--interactive` | Pause for confirmation before destructive steps |
+| `--dry-run` | Show what would be done without making changes |
+| `--help` | Print usage information |
+
+### Caveats
+
+**Release name.** The unified chart must be installed with the same
+release name as the legacy `kubewarden-controller` release (usually
+`kubewarden-controller`). Kubernetes Deployments have an immutable
+`spec.selector.matchLabels` that includes
+`app.kubernetes.io/instance: <release-name>`. If the name does not
+match, the install fails with an immutable-field error. The script
+detects the legacy release name automatically.
+
+**Controller gap.** Between the legacy uninstall and the unified
+chart becoming ready, no controller is running. Existing webhook
+configurations are still served by the surviving policy-server pods,
+so admission for active policies keeps working. New policy CRs
+created during this window are not reconciled into webhooks until
+the new controller starts.
+
+**Settings drift.** The DefaultsApplier rewrites each recommended
+policy's spec to match the values you pass to the unified chart. If
+you had changed `mode`, `settings`, or other fields on the
+recommended policies, pass those same values with `--set` or
+`--values` to preserve your configuration.
+
+**Renamed policies.** The unified chart's default policy names match
+the legacy defaults. If you renamed any through legacy values, pass
+the same `name` overrides with `--set` or `--values`. Otherwise the
+applier removes the old-named CRs after install.
+
+**Custom RBAC.** If you added extra permissions to
+`kubewarden-context-watcher` by hand, the unified chart overwrites
+them on install. Include those permissions in a values file or pass
+them with `--set "policyServer.permissions[0].apiGroup=..."`.
 
 ## Configuration
 
 ### Defaults
 
-The chart can deploy a default Policy Server and a series of recommended policies:
+The chart can deploy a default Policy Server and recommended policies:
 
 ```yaml
 policyServer:
@@ -91,40 +175,41 @@ policyServer:
   # ... (see values.yaml for full options)
 
 recommendedPolicies:
-  enabled: false # Disabled by default
+  enabled: false # disabled by default
   defaultPolicyMode: "monitor"
   allowPrivilegeEscalationPolicy:
     # ... (see values.yaml)
 ```
 
-**Note:** these resources are owned and reconciled by the adm-controller.
-Manual changes are going to be reverted. Also, changing this value to `false` leads to a cleanup of all these managed resources.
+These resources are owned and reconciled by the controller. Manual
+changes are reverted on the next reconciliation. Setting `enabled`
+to `false` removes all managed resources.
 
 ### CRDs
 
-CRDs are installed with the `helm.sh/resource-policy: keep` annotation. This means:
+CRDs are installed with the `helm.sh/resource-policy: keep` annotation:
 
-- `helm upgrade` will update CRDs
-- `helm uninstall` will **not** delete CRDs (preventing catastrophic cascade-deletion of all cluster resources)
+- `helm upgrade` updates CRDs normally
+- `helm uninstall` does not delete CRDs, which prevents cascade-deletion of all PolicyServers and policies in the cluster
 
 ## Uninstall
 
 ```sh
-helm uninstall kubewarden -n kubewarden
+helm uninstall kubewarden-controller -n kubewarden
 ```
 
 This removes:
 
-- The controller deployment
-- Managed defaults (resources with `kubewarden.io/managed-by=kubewarden-controller-defaults` label)
+- The controller Deployment
+- Managed defaults (resources labeled `kubewarden.io/managed-by=kubewarden-controller-defaults`)
 - ConfigMaps, Secrets, Services
 
-It does **not** remove:
+It does not remove:
 
-- CRDs (due to `helm.sh/resource-policy: keep`)
+- CRDs (kept by `helm.sh/resource-policy: keep`)
 - User-managed PolicyServers and policies
 
-To fully remove CRDs after uninstall:
+To remove CRDs after uninstall:
 
 ```sh
 kubectl delete crd policyservers.policies.kubewarden.io
@@ -136,5 +221,5 @@ kubectl delete crd admissionpolicygroups.policies.kubewarden.io
 
 ## References
 
-- [Kubewarden Documentation](https://docs.kubewarden.io/)
+- [Kubewarden documentation](https://docs.kubewarden.io/)
 - [Releases](https://github.com/kubewarden/adm-controller/releases)
