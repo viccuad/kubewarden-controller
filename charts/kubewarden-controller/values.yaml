@@ -477,7 +477,7 @@ policyServer:
   #   - uri: "uri3"
   #     certs:
   #       - "cert4"
-  sourceAuthorities: {}
+  sourceAuthorities: [] # @schema type:[array]
   # namespacedPoliciesCapabilities lists host capability API calls allowed
   # for namespaced policies running on this PolicyServer.
   # Supported patterns: [] (none), "*" (all), "category/*",
