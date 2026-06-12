@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     fmt,
     sync::LazyLock,
 };
@@ -11,26 +11,26 @@ use crate::errors::HostCapabilitiesPatternError;
 /// A node in the host-capability path tree.
 /// Leaf nodes (complete, addressable operations) have a `None` value.
 /// Intermediate nodes carry a `Some` map of named children.
-struct CapabilityNode(HashMap<&'static str, Option<Box<CapabilityNode>>>);
+struct CapabilityNode(BTreeMap<&'static str, Option<Box<CapabilityNode>>>);
 
 impl CapabilityNode {
     fn leaf() -> Option<Box<Self>> {
         None
     }
 
-    fn node(children: HashMap<&'static str, Option<Box<Self>>>) -> Option<Box<Self>> {
+    fn node(children: BTreeMap<&'static str, Option<Box<Self>>>) -> Option<Box<Self>> {
         Some(Box::new(Self(children)))
     }
 }
 
 static CAPABILITY_TREE: LazyLock<CapabilityNode> = LazyLock::new(|| {
-    CapabilityNode(HashMap::from([
+    CapabilityNode(BTreeMap::from([
         (
             "oci",
-            CapabilityNode::node(HashMap::from([
+            CapabilityNode::node(BTreeMap::from([
                 (
                     "v1",
-                    CapabilityNode::node(HashMap::from([
+                    CapabilityNode::node(BTreeMap::from([
                         ("verify", CapabilityNode::leaf()),
                         ("manifest_digest", CapabilityNode::leaf()),
                         ("oci_manifest", CapabilityNode::leaf()),
@@ -39,22 +39,25 @@ static CAPABILITY_TREE: LazyLock<CapabilityNode> = LazyLock::new(|| {
                 ),
                 (
                     "v2",
-                    CapabilityNode::node(HashMap::from([("verify", CapabilityNode::leaf())])),
+                    CapabilityNode::node(BTreeMap::from([("verify", CapabilityNode::leaf())])),
                 ),
             ])),
         ),
         (
             "net",
-            CapabilityNode::node(HashMap::from([(
+            CapabilityNode::node(BTreeMap::from([(
                 "v1",
-                CapabilityNode::node(HashMap::from([("dns_lookup_host", CapabilityNode::leaf())])),
+                CapabilityNode::node(BTreeMap::from([(
+                    "dns_lookup_host",
+                    CapabilityNode::leaf(),
+                )])),
             )])),
         ),
         (
             "crypto",
-            CapabilityNode::node(HashMap::from([(
+            CapabilityNode::node(BTreeMap::from([(
                 "v1",
-                CapabilityNode::node(HashMap::from([(
+                CapabilityNode::node(BTreeMap::from([(
                     "is_certificate_trusted",
                     CapabilityNode::leaf(),
                 )])),
@@ -62,7 +65,7 @@ static CAPABILITY_TREE: LazyLock<CapabilityNode> = LazyLock::new(|| {
         ),
         (
             "kubernetes",
-            CapabilityNode::node(HashMap::from([
+            CapabilityNode::node(BTreeMap::from([
                 ("list_resources_by_namespace", CapabilityNode::leaf()),
                 ("list_resources_all", CapabilityNode::leaf()),
                 ("get_resource", CapabilityNode::leaf()),
@@ -97,8 +100,7 @@ fn validate_against_tree(pattern: &str) -> Result<(), HostCapabilitiesPatternErr
 
         match node.0.get(part) {
             None => {
-                let mut valid: Vec<&str> = node.0.keys().copied().collect();
-                valid.sort_unstable();
+                let valid: Vec<&str> = node.0.keys().copied().collect();
                 return Err(HostCapabilitiesPatternError::UnknownSegment {
                     pattern: pattern.to_string(),
                     segment: part.to_string(),
@@ -160,9 +162,9 @@ pub enum HostCapabilities {
     /// Allow specific capabilities matched by prefix or exact patterns.
     Patterns {
         /// Prefix patterns (e.g., `oci/` from `oci/*`, `oci/v2/` from `oci/v2/*`)
-        prefixes: HashSet<String>,
+        prefixes: BTreeSet<String>,
         /// Exact capability paths (e.g., `oci/v1/verify`)
-        exact: HashSet<String>,
+        exact: BTreeSet<String>,
     },
 }
 
@@ -206,8 +208,8 @@ impl HostCapabilities {
     pub fn new(
         patterns: impl IntoIterator<Item = impl AsRef<str>>,
     ) -> Result<Self, HostCapabilitiesPatternError> {
-        let mut prefixes = HashSet::new();
-        let mut exact = HashSet::new();
+        let mut prefixes = BTreeSet::new();
+        let mut exact = BTreeSet::new();
 
         for pattern in patterns {
             let pattern = pattern.as_ref();
@@ -276,10 +278,7 @@ impl From<HostCapabilities> for Vec<String> {
             HostCapabilities::Patterns { prefixes, exact } => {
                 let mut result: Vec<String> =
                     prefixes.into_iter().map(|p| format!("{p}*")).collect();
-                result.sort();
-                let mut exact_sorted: Vec<String> = exact.into_iter().collect();
-                exact_sorted.sort();
-                result.extend(exact_sorted);
+                result.extend(exact);
                 result
             }
         }
@@ -293,10 +292,7 @@ impl fmt::Display for HostCapabilities {
             Self::DenyAll => write!(f, "[]"),
             Self::Patterns { prefixes, exact } => {
                 let mut items: Vec<String> = prefixes.iter().map(|p| format!("{p}*")).collect();
-                items.sort();
-                let mut exact_sorted: Vec<&String> = exact.iter().collect();
-                exact_sorted.sort();
-                items.extend(exact_sorted.into_iter().cloned());
+                items.extend(exact.iter().cloned());
                 write!(f, "[{}]", items.join(", "))
             }
         }

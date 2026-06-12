@@ -6,7 +6,8 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use policy_evaluator::{
-    ProtocolVersion, constants::*, policy_metadata::Metadata, validator::Validate,
+    ProtocolVersion, constants::*, host_capabilities::HostCapabilities, policy_metadata::Metadata,
+    validator::Validate,
 };
 use tracing::warn;
 
@@ -82,6 +83,60 @@ fn prepare_metadata(
         .and(Ok(metadata))
 }
 
+/// Holds the result of comparing detected host capabilities against declared ones.
+#[derive(Debug, Default, PartialEq)]
+struct CapabilitiesMismatch {
+    /// Capability paths detected in the policy binary that are not covered by
+    /// any declared pattern.
+    used_but_undeclared: BTreeSet<String>,
+    /// Declared patterns that do not cover any capability path detected in the
+    /// binary.  For [`HostCapabilities::AllowAll`] this always contains `"*"`
+    /// to signal that the wildcard is too permissive.
+    declared_but_unused: BTreeSet<String>,
+}
+
+/// Pure helper: given the set of detected capability paths and the parsed
+/// `HostCapabilities`, returns a [`CapabilitiesMismatch`] describing patterns
+/// that are used-but-undeclared and declared-but-unused.
+fn compute_capabilities_mismatch(
+    detected_set: &BTreeSet<String>,
+    host_capabilities: &HostCapabilities,
+) -> CapabilitiesMismatch {
+    // Capabilities the policy uses but that are not covered by the declarations.
+    let used_but_undeclared: BTreeSet<String> = detected_set
+        .iter()
+        .filter(|cap| !host_capabilities.is_allowed(cap.as_str()))
+        .cloned()
+        .collect();
+
+    // Declared patterns that don't match anything in the detected set.
+    let declared_but_unused: BTreeSet<String> = match host_capabilities {
+        HostCapabilities::DenyAll => BTreeSet::new(),
+        // The `*` wildcard is always considered too permissive — the caller
+        // will emit a dedicated warning regardless of what was detected.
+        HostCapabilities::AllowAll => BTreeSet::from(["*".to_string()]),
+        HostCapabilities::Patterns { prefixes, exact } => {
+            let mut unused: BTreeSet<String> = exact.difference(detected_set).cloned().collect();
+            for prefix in prefixes {
+                if !detected_set
+                    .iter()
+                    .any(|cap| cap.starts_with(prefix.as_str()))
+                {
+                    // Re-attach the `*` that was stripped during parsing so
+                    // the warning is human-readable (e.g. `oci/*`).
+                    unused.insert(format!("{prefix}*"));
+                }
+            }
+            unused
+        }
+    };
+
+    CapabilitiesMismatch {
+        used_but_undeclared,
+        declared_but_unused,
+    }
+}
+
 fn warn_on_capabilities_mismatch(
     detected: &[wasm_scanner::DetectedHostCapability],
     metadata: &Metadata,
@@ -91,27 +146,36 @@ fn warn_on_capabilities_mismatch(
         .map(|c| format!("{}/{}", c.namespace, c.operation))
         .collect();
 
-    let declared_set: BTreeSet<String> = metadata
-        .host_capabilities
-        .as_ref()
-        .cloned()
-        .unwrap_or_default();
+    let host_capabilities =
+        match HostCapabilities::new(metadata.host_capabilities.iter().flat_map(|s| s.iter())) {
+            Ok(hc) => hc,
+            Err(e) => {
+                warn!("invalid host_capabilities pattern in metadata: {}", e);
+                return;
+            }
+        };
 
-    let used_but_undeclared: BTreeSet<&String> = detected_set.difference(&declared_set).collect();
-    let declared_but_unused: BTreeSet<&String> = declared_set.difference(&detected_set).collect();
+    let mismatch = compute_capabilities_mismatch(&detected_set, &host_capabilities);
 
-    if !used_but_undeclared.is_empty() {
+    if !mismatch.used_but_undeclared.is_empty() {
         warn!(
-            capabilities = ?used_but_undeclared,
+            capabilities = ?mismatch.used_but_undeclared,
             "host capabilities used by the policy but not declared in metadata"
         );
     }
 
-    if !declared_but_unused.is_empty() {
-        warn!(
-            capabilities = ?declared_but_unused,
-            "host capabilities declared in metadata but not detected in the policy"
-        );
+    if !mismatch.declared_but_unused.is_empty() {
+        if matches!(host_capabilities, HostCapabilities::AllowAll) {
+            warn!(
+                "metadata declares all host capabilities (*); consider restricting \
+                 to only the capabilities actually used by the policy"
+            );
+        } else {
+            warn!(
+                capabilities = ?mismatch.declared_but_unused,
+                "host capabilities declared in metadata but not detected in the policy"
+            );
+        }
     }
 }
 
@@ -154,6 +218,111 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::tempdir;
+
+    use rstest::rstest;
+
+    fn detected(caps: &[(&str, &str)]) -> BTreeSet<String> {
+        caps.iter().map(|(ns, op)| format!("{ns}/{op}")).collect()
+    }
+
+    #[rstest]
+    #[case::deny_all_nothing_detected(
+        vec![],                  // detected
+        vec![],                  // declared
+        vec![],                  // used_but_undeclared
+        vec![],                  // declared_but_unused
+    )]
+    #[case::deny_all_with_detected(
+        vec![("oci", "v1/verify")], // detected
+        vec![],                     // declared
+        vec!["oci/v1/verify"],      // used_but_undeclared
+        vec![],                     // declared_but_unused
+    )]
+    #[case::allow_all_with_detected(
+        vec![("oci", "v1/verify")], // detected
+        vec!["*"],                  // declared
+        vec![],                     // used_but_undeclared
+        vec!["*"],                  // declared_but_unused
+    )]
+    #[case::allow_all_nothing_detected(
+        vec![],    // detected
+        vec!["*"], // declared
+        vec![],    // used_but_undeclared
+        vec!["*"], // declared_but_unused
+    )]
+    #[case::prefix_covers_single(
+        vec![("oci", "v1/verify")], // detected
+        vec!["oci/*"],              // declared
+        vec![],                     // used_but_undeclared
+        vec![],                     // declared_but_unused
+    )]
+    #[case::prefix_covers_multiple(
+        vec![("oci", "v1/verify"), ("oci", "v1/manifest_digest")], // detected
+        vec!["oci/*"],                                              // declared
+        vec![],                                                     // used_but_undeclared
+        vec![],                                                     // declared_but_unused
+    )]
+    #[case::prefix_declared_nothing_detected(
+        vec![],        // detected
+        vec!["oci/*"], // declared
+        vec![],        // used_but_undeclared
+        vec!["oci/*"], // declared_but_unused
+    )]
+    #[case::prefix_other_namespace(
+        vec![("net", "v1/dns_lookup_host")], // detected
+        vec!["oci/*"],                       // declared
+        vec!["net/v1/dns_lookup_host"],      // used_but_undeclared
+        vec!["oci/*"],                       // declared_but_unused
+    )]
+    #[case::exact_match(
+        vec![("oci", "v1/verify")], // detected
+        vec!["oci/v1/verify"],      // declared
+        vec![],                     // used_but_undeclared
+        vec![],                     // declared_but_unused
+    )]
+    #[case::exact_used_but_undeclared(
+        vec![("oci", "v1/verify"), ("net", "v1/dns_lookup_host")], // detected
+        vec!["oci/v1/verify"],                                      // declared
+        vec!["net/v1/dns_lookup_host"],                             // used_but_undeclared
+        vec![],                                                     // declared_but_unused
+    )]
+    #[case::exact_declared_but_unused(
+        vec![("oci", "v1/verify")],                        // detected
+        vec!["oci/v1/verify", "net/v1/dns_lookup_host"],   // declared
+        vec![],                                            // used_but_undeclared
+        vec!["net/v1/dns_lookup_host"],                    // declared_but_unused
+    )]
+    #[case::versioned_prefix_covers(
+        vec![("oci", "v2/verify")], // detected
+        vec!["oci/v2/*"],           // declared
+        vec![],                     // used_but_undeclared
+        vec![],                     // declared_but_unused
+    )]
+    #[case::versioned_prefix_other_version(
+        vec![("oci", "v1/verify")], // detected
+        vec!["oci/v2/*"],           // declared
+        vec!["oci/v1/verify"],      // used_but_undeclared
+        vec!["oci/v2/*"],           // declared_but_unused
+    )]
+    fn compute_mismatch(
+        #[case] detected_caps: Vec<(&str, &str)>,
+        #[case] declared_patterns: Vec<&str>,
+        #[case] expected_used_but_undeclared: Vec<&str>,
+        #[case] expected_declared_but_unused: Vec<&str>,
+    ) {
+        let hc = HostCapabilities::new(declared_patterns).unwrap();
+        let mismatch = compute_capabilities_mismatch(&detected(&detected_caps), &hc);
+        let expected_used: BTreeSet<String> = expected_used_but_undeclared
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let expected_unused: BTreeSet<String> = expected_declared_but_unused
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        assert_eq!(mismatch.used_but_undeclared, expected_used);
+        assert_eq!(mismatch.declared_but_unused, expected_unused);
+    }
 
     fn mock_protocol_version_detector_v1(_wasm_path: PathBuf) -> Result<ProtocolVersion> {
         Ok(ProtocolVersion::V1)
