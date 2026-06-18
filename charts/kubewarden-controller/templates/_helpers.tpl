@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "kubewarden-controller.name" -}}
+{{- define "adm-controller.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "kubewarden-controller.fullname" -}}
+{{- define "adm-controller.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -44,25 +44,62 @@ the job Pods.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "kubewarden-controller.chart" -}}
+{{- define "adm-controller.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-Common labels
+Base labels shared by every resource in the chart.
+Does not include managed-by (varies: Helm vs kubewarden-controller)
+or component (varies per resource type).
 */}}
-{{- define "kubewarden-controller.labels" -}}
-helm.sh/chart: {{ include "kubewarden-controller.chart" . }}
-{{ include "kubewarden-controller.selectorLabels" . }}
+{{- define "adm-controller.commonLabels" -}}
+helm.sh/chart: {{ include "adm-controller.chart" . }}
+{{ include "adm-controller.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- else }}
+app.kubernetes.io/version: {{ .Chart.Version | quote }}
 {{- end }}
-app.kubernetes.io/component: controller
-app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: kubewarden
 {{- if .Values.additionalLabels }}
 {{ toYaml .Values.additionalLabels }}
 {{- end }}
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "adm-controller.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "adm-controller.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Labels for defaults resources (PolicyServer RBAC, hook Jobs, etc.)
+No component label — callers add it inline when needed.
+*/}}
+{{- define "adm-controller.defaults.labels" -}}
+{{ include "adm-controller.commonLabels" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Labels for controller resources (Deployment, Services, RBAC, etc.)
+*/}}
+{{- define "adm-controller.labels" -}}
+{{ include "adm-controller.commonLabels" . }}
+app.kubernetes.io/component: controller
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Labels for embedded default ClusterAdmissionPolicy resources.
+*/}}
+{{- define "adm-controller.policyLabels" -}}
+{{ include "adm-controller.commonLabels" . }}
+app.kubernetes.io/component: policy
+app.kubernetes.io/managed-by: kubewarden-controller
 {{- end }}
 
 {{/*
@@ -80,18 +117,11 @@ Print the image pull secrets in the expected format (an array of objects with on
     {{- toYaml $imagePullSecrets }}
 {{- end }}
 
-{{/*
-Selector labels
-*/}}
-{{- define "kubewarden-controller.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "kubewarden-controller.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
 
 {{/*
 Annotations
 */}}
-{{- define "kubewarden-controller.annotations" -}}
+{{- define "adm-controller.annotations" -}}
 {{- if .Values.additionalAnnotations }}
 {{ toYaml .Values.additionalAnnotations }}
 {{- end }}
@@ -100,8 +130,27 @@ Annotations
 {{/*
 Create the name of the service account to use for kubewarden-controller
 */}}
-{{- define "kubewarden-controller.serviceAccountName" -}}
-{{- include "kubewarden-controller.fullname" . }}
+{{- define "adm-controller.serviceAccountName" -}}
+{{- include "adm-controller.fullname" . }}
+{{- end }}
+
+{{/*
+Create the webhook service name, ensuring it doesn't exceed 63 characters.
+The service name is fullname + "-webhook-service" (16 chars), so we need to
+limit fullname to 47 chars to stay under the 63 char limit.
+*/}}
+{{- define "adm-controller.webhookServiceName" -}}
+{{- if .Values.fullnameOverride }}
+{{- printf "%s-webhook-service" (.Values.fullnameOverride | trunc 47 | trimSuffix "-") }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- printf "%s-webhook-service" (.Release.Name | trunc 47 | trimSuffix "-") }}
+{{- else }}
+{{- $fullname := printf "%s-%s" .Release.Name $name | trunc 47 | trimSuffix "-" }}
+{{- printf "%s-webhook-service" $fullname }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{- define "system_default_registry" -}}
@@ -191,9 +240,56 @@ NOTE: When hostNetwork is enabled, users are responsible for setting
 appropriate podAntiAffinity rules to prevent host-port conflicts between
 controller replicas on the same node.
 */}}
-{{- define "kubewarden-controller.effectiveAffinity" -}}
+{{- define "adm-controller.effectiveAffinity" -}}
 {{- if .Values.affinity -}}
   {{- toYaml .Values.affinity -}}
+{{- else if .Values.global.affinity -}}
+  {{- toYaml .Values.global.affinity -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Annotations for defaults resources.
+*/}}
+{{- define "adm-controller.defaults.annotations" -}}
+{{- if .Values.additionalAnnotations }}
+{{ toYaml .Values.additionalAnnotations }}
+{{- end }}
+{{- end }}
+
+{{- define "policy_default_registry" -}}
+{{- if .Values.recommendedPolicies.defaultPoliciesRegistry -}}
+{{- printf "%s/" .Values.recommendedPolicies.defaultPoliciesRegistry -}}
+{{- else -}}
+{{- printf "%s/" .Values.global.cattle.systemDefaultRegistry -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "policy_failure_policy" -}}
+{{- if eq .Values.recommendedPolicies.defaultPolicyMode "protect" -}}
+Fail
+{{- else -}}
+Ignore
+{{- end -}}
+{{- end -}}
+
+{{- define "policy-namespace-selector" -}}
+namespaceSelector:
+  matchExpressions:
+  - key: "kubernetes.io/metadata.name"
+    operator: NotIn
+    values:
+{{- with .Values.global.skipNamespaces }}
+      {{- toYaml . | nindent 4 }}
+{{- end }}
+{{- with .Values.recommendedPolicies.skipAdditionalNamespaces }}
+      {{- toYaml . | nindent 4 }}
+{{- end }}
+{{- end -}}
+
+{{- define "adm-controller.defaults.effectiveAffinity" -}}
+{{- if .Values.policyServer.affinity -}}
+  {{- toYaml .Values.policyServer.affinity -}}
 {{- else if .Values.global.affinity -}}
   {{- toYaml .Values.global.affinity -}}
 {{- end -}}
@@ -204,7 +300,7 @@ Validate that hostNetwork and telemetry sidecar mode are not both enabled.
 They are incompatible because multiple OTel sidecars on the same node would
 cause port conflicts in host-network mode.
 */}}
-{{- define "kubewarden-controller.validateHostNetworkSidecar" -}}
+{{- define "adm-controller.validateHostNetworkSidecar" -}}
 {{- if and .Values.hostNetwork (eq .Values.telemetry.mode "sidecar") (or .Values.telemetry.metrics .Values.telemetry.tracing) -}}
 {{- fail "hostNetwork and telemetry.mode=sidecar are incompatible: OpenTelemetry sidecar injection causes port conflicts in host-network mode. Use telemetry.mode=custom with a remote collector instead." -}}
 {{- end -}}

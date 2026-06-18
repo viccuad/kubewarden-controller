@@ -1,0 +1,35 @@
+{{- if .Values.telemetry.metrics }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "adm-controller.fullname" . }}-metrics-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "adm-controller.labels" . | nindent 4 }}
+  annotations:
+    {{- include "adm-controller.annotations" . | nindent 4 }}
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: {{ .Values.ports.metrics }}
+  selector:
+    {{- include "adm-controller.selectorLabels" . | nindent 4 }}
+{{- end}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "adm-controller.webhookServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "adm-controller.labels" . | nindent 4 }}
+  annotations:
+    {{- include "adm-controller.annotations" . | nindent 4 }}
+spec:
+  ports:
+  - port: 443
+    targetPort: {{ .Values.ports.webhook }}
+  selector:
+{{- include "adm-controller.selectorLabels" . | nindent 4 }}

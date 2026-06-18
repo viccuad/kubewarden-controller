@@ -55,6 +55,21 @@ const (
 	deploymentsNamespace = "kubewarden-integration-tests"
 )
 
+// kubewardenCRDPaths returns the paths to the Kubewarden admission controller
+// CRD files in the Helm chart. The imported policy-report CRDs are excluded
+// because they are wrapped in Helm conditionals and cannot be parsed as plain
+// YAML by envtest.
+func kubewardenCRDPaths() []string {
+	dir := filepath.Join("..", "..", "charts", "kubewarden-controller", "templates", "crds")
+	return []string{
+		filepath.Join(dir, "policies.kubewarden.io_admissionpolicies.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_admissionpolicygroups.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_clusteradmissionpolicies.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_clusteradmissionpolicygroups.yaml"),
+		filepath.Join(dir, "policies.kubewarden.io_policyservers.yaml"),
+	}
+}
+
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -68,8 +83,9 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	testEnv := &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "charts", "kubewarden-crds", "templates", "crds")},
-		ErrorIfCRDPathMissing: true,
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Paths: kubewardenCRDPaths(),
+		},
 	}
 
 	restConfig, err := testEnv.Start()
