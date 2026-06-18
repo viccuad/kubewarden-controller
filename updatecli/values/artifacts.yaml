@@ -11,12 +11,12 @@ ociArtifacts:
   # flag to skip update of the images version in the Helm chart with the
   # version in the registry. These container image should use the container
   # image defined in the release process
-  - file: "charts/kubewarden-controller/values.yaml"
+  - file: "charts/adm-controller/values.yaml"
     key: "$.image.tag"
     image: "ghcr.io/kubewarden/adm-controller/controller"
     workflowUrl: "https://github.com/kubewarden/adm-controller/.github/workflows/release.yml@refs/tags"
     skipVersionFromRegistry: true
-  - file: "charts/kubewarden-controller/values.yaml"
+  - file: "charts/adm-controller/values.yaml"
     key: "$.auditScanner.image.tag"
     image: "ghcr.io/kubewarden/adm-controller/audit-scanner"
     workflowUrl: "https://github.com/kubewarden/adm-controller/.github/workflows/release.yml@refs/tags"
@@ -47,7 +47,7 @@ ociArtifacts:
     key: "$.recommendedPolicies.capabilitiesPolicy.module.tag"
   # Third party dependencies
   - image: ghcr.io/rancher/kuberlr-kubectl
-    file: "charts/kubewarden-controller/values.yaml"
+    file: "charts/adm-controller/values.yaml"
     key: "$.preDeleteJob.image.tag"
 # The helmCharts list all the Helm charts listed in the Hauler that needs to be
 # updated regularly. This list should be in the same order as defined in the
@@ -56,14 +56,14 @@ helmCharts:
   - name: kubewarden-crds
     file: "charts/kubewarden-crds/Chart.yaml"
     versionKey: "$.version"
-  - name: kubewarden-controller
-    file: "charts/kubewarden-controller/Chart.yaml"
+  - name: adm-controller
+    file: "charts/adm-controller/Chart.yaml"
     versionKey: "$.version"
   - name: kubewarden-defaults
     file: "charts/kubewarden-defaults/Chart.yaml"
     versionKey: "$.version"
   - name: policy-reporter
-    file: "charts/kubewarden-controller/Chart.yaml"
+    file: "charts/adm-controller/Chart.yaml"
     versionKey: "$.dependencies[0].version"
     repository: https://kyverno.github.io/policy-reporter
   - name: openreports
@@ -73,12 +73,12 @@ helmCharts:
 
 kubewardenContainerImage:
   - name: "controller"
-    file: "charts/kubewarden-controller/values.yaml"
+    file: "charts/adm-controller/values.yaml"
     key: "$.image.tag"
     image: "ghcr.io/kubewarden/adm-controller/controller"
     workflowUrl: "https://github.com/kubewarden/adm-controller/.github/workflows/release.yml@refs/tags"
   - name: "auditScanner"
-    file: "charts/kubewarden-controller/values.yaml"
+    file: "charts/adm-controller/values.yaml"
     key: "$.auditScanner.image.tag"
     image: "ghcr.io/kubewarden/adm-controller/audit-scanner"
     workflowUrl: "https://github.com/kubewarden/audit-scanner/.github/workflows/release.yml@refs/tags"

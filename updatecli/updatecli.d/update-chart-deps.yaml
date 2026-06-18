@@ -68,12 +68,12 @@ targets:
       - '{{ printf "target#target/%sChart" $chart.name }}'
     spec:
       command: |
-        helm dependency update charts/kubewarden-controller
+        helm dependency update charts/adm-controller
       changedif:
         kind: file/checksum
         spec:
           files:
-            - charts/kubewarden-controller/Chart.lock
+            - charts/adm-controller/Chart.lock
   # {{ end }}
   # {{ end }}
 

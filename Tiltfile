@@ -18,7 +18,7 @@ update_settings(
 )
 
 kubewarden_yaml = helm(
-    "./charts/kubewarden-controller",
+    "./charts/adm-controller",
     name="kubewarden",
     namespace="kubewarden",
     set=[
@@ -52,8 +52,10 @@ k8s_resource(
 )
 
 # Wait for controller deployment to be ready
+# Object name comes from the fullname helper: <release>-<chart> = kubewarden-adm-controller.
+# new_name is just the Tilt UI label and is kept stable for dependency references.
 k8s_resource(
-    'kubewarden-kubewarden-controller',
+    'kubewarden-adm-controller',
     new_name='kubewarden-controller',
     resource_deps=['kubewarden-crds'],
 )

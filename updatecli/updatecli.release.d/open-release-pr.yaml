@@ -34,7 +34,7 @@ sources:
     transformers:
       - semverinc: minor
     spec:
-      file: charts/kubewarden-controller/Chart.yaml
+      file: charts/adm-controller/Chart.yaml
       key: $.version
   crdsChartVersion:
     name: "Get latest kubewarden-crds helm version"
@@ -71,7 +71,7 @@ conditions:
     spec:
       file: "./charts/hauler_manifest.yaml"
       key: "$.spec.charts[1].name"
-      value: "kubewarden-controller"
+      value: "adm-controller"
   kubewardenDefaultsChartPosition:
     kind: yaml
     disablesourceinput: true
@@ -136,7 +136,7 @@ targets:
     kind: yaml
     sourceid: controllerChartVersion
     spec:
-      file: charts/kubewarden-controller/Chart.yaml
+      file: charts/adm-controller/Chart.yaml
       key: $.version
   update_kubewarden_controller_helm_appversion:
     scmid: default
@@ -144,7 +144,7 @@ targets:
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
-      file: charts/kubewarden-controller/Chart.yaml
+      file: charts/adm-controller/Chart.yaml
       key: $.appVersion
   update_kubewarden_controller_auto_install_annotation:
     name: "Update kubewarden-controller auto-install annotation"
@@ -152,7 +152,7 @@ targets:
     sourceid: crdsChartVersion
     scmid: "default"
     spec:
-      file: "file://charts/kubewarden-controller/Chart.yaml"
+      file: "file://charts/adm-controller/Chart.yaml"
       key: 'annotations.catalog\.cattle\.io/auto-install'
       value: 'kubewarden-crds={{ source "crdsChartVersion" }}'
   update_kubewarden_defaults_helm_version:
@@ -186,7 +186,7 @@ targets:
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
-      file: charts/kubewarden-controller/values.yaml
+      file: charts/adm-controller/values.yaml
       key: $.image.tag
   update_audit_scanner_image_tag:
     scmid: default
@@ -194,7 +194,7 @@ targets:
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
-      file: charts/kubewarden-controller/values.yaml
+      file: charts/adm-controller/values.yaml
       key: $.auditScanner.image.tag
   update_policy_server_image_tag:
     scmid: default
@@ -210,7 +210,7 @@ targets:
     kind: file
     sourceid: readmeFile
     spec:
-      file: charts/kubewarden-controller/README.md
+      file: charts/adm-controller/README.md
       forcecreate: true
   generate_values_schema:
     kind: shell
@@ -222,7 +222,7 @@ targets:
         kind: file/checksum
         spec:
           files:
-            - charts/kubewarden-controller/values.schema.json
+            - charts/adm-controller/values.schema.json
       command: |
         make generate-chart
   updateCargoTomlVersion:
