@@ -3,7 +3,7 @@
 #
 # Migrates an existing Kubewarden installation from the legacy three-chart
 # stack (kubewarden-crds, kubewarden-controller, kubewarden-defaults) to
-# the unified single kubewarden-controller chart — with zero downtime.
+# the unified single adm-controller chart — with zero downtime.
 #
 # The migration proceeds in five phases:
 #
@@ -27,11 +27,15 @@
 #      from Helm but every resource remains live in the cluster.
 #
 #   4. Install unified chart
-#      Runs `helm install --take-ownership` with the unified chart. The
-#      release name must match the legacy kubewarden-controller release
-#      name to avoid immutable selector conflicts. Helm 4 uses
-#      Server-Side Apply to adopt existing resources and strip the legacy
-#      keep annotations from chart-rendered resources.
+#      Runs `helm install --take-ownership` with the unified adm-controller
+#      chart. Two things make in-place adoption work despite the chart rename:
+#      the release name must match the legacy kubewarden-controller release
+#      name (preserves the app.kubernetes.io/instance selector label), and the
+#      install passes --set nameOverride=<legacy name> (preserves the
+#      app.kubernetes.io/name selector label). The legacy name is read from the
+#      legacy release's Helm values in preflight. Helm 4 uses Server-Side Apply
+#      to adopt existing resources and strip the legacy keep annotations from
+#      chart-rendered resources.
 #
 #   5. Post-migration verification
 #      Confirms CRDs are owned by the new release, the controller
@@ -62,15 +66,15 @@
 # Examples:
 #   # Migrate using a local chart tarball:
 #   ./kubewarden-unified-adm-controller-chart-migration.sh \
-#       --unified-chart ./kubewarden-controller-6.0.0.tgz
+#       --unified-chart ./adm-controller-6.0.0.tgz
 #
 #   # Migrate using the chart from the Helm repo:
 #   ./kubewarden-unified-adm-controller-chart-migration.sh \
-#       --unified-chart kubewarden/kubewarden-controller
+#       --unified-chart kubewarden/adm-controller
 #
 #   # Dry run (no changes):
 #   ./kubewarden-unified-adm-controller-chart-migration.sh \
-#       --unified-chart ./kubewarden-controller-6.0.0.tgz --dry-run
+#       --unified-chart ./adm-controller-6.0.0.tgz --dry-run
 
 set -euo pipefail
 
@@ -110,6 +114,11 @@ LEGACY_RELEASES=(
 # Detected at runtime.
 LEGACY_CONTROLLER_RELEASE_NAME=""
 RECOMMENDED_POLICIES=()
+# nameOverride to pass to the unified chart so it renders the SAME resource
+# names/labels as the legacy chart (required for in-place adoption — see
+# phase_install_unified). Defaults to the well-known legacy chart name and is
+# refined in phase_snapshot by reading the live controller Deployment.
+LEGACY_NAME_OVERRIDE="kubewarden-controller"
 
 #------------------------------------------------------------------------------
 # CLI parsing
@@ -328,6 +337,24 @@ phase_preflight() {
   [[ -n "$LEGACY_CONTROLLER_RELEASE_NAME" ]] \
     || fail "could not determine the legacy kubewarden-controller release name"
   info "unified chart will be installed with release name: $LEGACY_CONTROLLER_RELEASE_NAME"
+
+  # Determine the nameOverride to pass to the unified chart so it renders the
+  # SAME resource names/labels as the legacy chart (required for in-place
+  # adoption — see phase_install_unified). The effective name the legacy chart
+  # used is `default .Chart.Name .Values.nameOverride`, so we read the
+  # user-supplied nameOverride from the legacy controller release's stored Helm
+  # values and fall back to the legacy chart's name (kubewarden-controller) when
+  # it was never overridden. (hctl is the helm wrapper defined above.)
+  local legacy_name_override
+  legacy_name_override="$(hctl get values "$LEGACY_CONTROLLER_RELEASE_NAME" -n "$KW_NAMESPACE" -o json 2>/dev/null \
+                          | jq -r '.nameOverride // empty' 2>/dev/null || true)"
+  if [[ -n "$legacy_name_override" ]]; then
+    LEGACY_NAME_OVERRIDE="$legacy_name_override"
+    info "legacy release set a custom nameOverride: '$LEGACY_NAME_OVERRIDE'"
+  else
+    info "legacy release used the default chart name: nameOverride='$LEGACY_NAME_OVERRIDE'"
+  fi
+  info "unified chart will be installed with --set nameOverride=$LEGACY_NAME_OVERRIDE (preserves legacy resource identity)"
 
   # Validate unified chart source.
   if [[ -f "$UNIFIED_CHART" ]]; then
@@ -549,10 +576,26 @@ phase_install_unified() {
 
   confirm "About to run 'helm install $release_name --take-ownership' to adopt existing resources."
 
-  if dry_run_guard "helm install $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --take-ownership --set policyServer.enabled=true --set recommendedPolicies.enabled=true ${HELM_INSTALL_EXTRA_ARGS[*]:-}"; then
+  # nameOverride=$LEGACY_NAME_OVERRIDE is REQUIRED for the migration.
+  #
+  # The unified chart is now named "adm-controller", so by default it renders
+  # resources with the new identity (app.kubernetes.io/name=adm-controller,
+  # Deployment <release>-adm-controller, etc.). The live legacy resources we are
+  # adopting were created by the old "kubewarden-controller" chart and carry the
+  # legacy app.kubernetes.io/name in their immutable Deployment selectors.
+  # Pinning nameOverride to the detected legacy name (see phase_preflight) makes
+  # the unified chart render the OLD app.kubernetes.io/name; reusing the legacy
+  # release name (above) preserves the OLD app.kubernetes.io/instance. With both
+  # immutable selector labels matched, Helm 4 Server-Side Apply adopts the
+  # existing objects in place instead of failing on the immutable selector.
+  #
+  # This value is stored in the release: future `helm upgrade --reuse-values`
+  # (or a values file carrying nameOverride: $LEGACY_NAME_OVERRIDE) keeps it.
+  if dry_run_guard "helm install $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --take-ownership --set nameOverride=$LEGACY_NAME_OVERRIDE --set policyServer.enabled=true --set recommendedPolicies.enabled=true ${HELM_INSTALL_EXTRA_ARGS[*]:-}"; then
     hctl install "$release_name" "$UNIFIED_CHART" \
       --namespace "$KW_NAMESPACE" \
       --take-ownership \
+      --set "nameOverride=$LEGACY_NAME_OVERRIDE" \
       --set "policyServer.enabled=true" \
       --set "recommendedPolicies.enabled=true" \
       --set "recommendedPolicies.defaultPolicyMode=protect" \
@@ -674,3 +717,9 @@ info "Log saved to: $LOG_FILE"
 info ""
 info "Next steps:"
 info "  - Verify your PolicyServers and policies are working as expected"
+info "  - IMPORTANT: this release was installed with nameOverride=$LEGACY_NAME_OVERRIDE"
+info "    to preserve the legacy resource names/labels (immutable Deployment"
+info "    selector). Future upgrades MUST keep this value, e.g. run"
+info "    'helm upgrade ... --reuse-values' or add 'nameOverride: $LEGACY_NAME_OVERRIDE'"
+info "    to your values file. Omitting it would re-render adm-controller-named"
+info "    selectors and fail on the immutable field."

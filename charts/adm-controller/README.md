@@ -9,7 +9,7 @@ Helm chart for deploying the Kubewarden admission control stack.
 ## Installation
 
 ```sh
-helm install kubewarden kubewarden/kubewarden-controller -n kubewarden --create-namespace
+helm install kubewarden kubewarden/adm-controller -n kubewarden --create-namespace
 ```
 
 ## Migration from three-chart setup
@@ -55,7 +55,7 @@ helm uninstall kubewarden-crds -n kubewarden
 3. Install the unified Helm chart:
 
 ```sh
-helm install kubewarden kubewarden/kubewarden-controller -n kubewarden
+helm install kubewarden kubewarden/adm-controller -n kubewarden
 ```
 
 It's important to note that the new single Helm chart also unified the values
@@ -64,7 +64,7 @@ the same stack again you can merge all the values files used in the old 3 helm
 charts into one and use in the new Helm chart installation as well:
 
 ```sh
-helm install kubewarden kubewarden/kubewarden-controller -n kubewarden --values all-values.yaml
+helm install kubewarden kubewarden/adm-controller -n kubewarden --values all-values.yaml
 ```
 
 4. Restore policies and policy servers:
@@ -88,10 +88,12 @@ manifests, uninstalling the legacy releases without running cleanup
 hooks, then installing the unified chart so it adopts the existing
 resources. The ordering matters because annotations must be in the
 stored manifest (not just on live objects) for Helm to honor them,
-hooks must be skipped or they delete PolicyServers, and the release
-name must match the old one or Kubernetes rejects the update due to
-immutable selectors. Getting any step wrong can delete resources or
-break admission, so the script handles it all and verifies each step.
+hooks must be skipped or they delete PolicyServers, and both the
+release name and the chart's `nameOverride` must match the legacy ones
+(see the "Chart rename / resource naming" caveat) or Kubernetes
+rejects the update due to immutable selectors. Getting any step wrong
+can delete resources or break admission, so the script handles it all
+and verifies each step.
 
 What survives the migration:
 
@@ -157,35 +159,35 @@ The script runs five phases:
 
 ```sh
 ./kubewarden-unified-adm-controller-chart-migration.sh \
-  --unified-chart kubewarden/kubewarden-controller
+  --unified-chart kubewarden/adm-controller
 ```
 
 Using a local tarball:
 
 ```sh
 ./kubewarden-unified-adm-controller-chart-migration.sh \
-  --unified-chart ./kubewarden-controller-6.0.0.tgz
+  --unified-chart ./adm-controller-6.0.0.tgz
 ```
 
 Dry run (no changes applied):
 
 ```sh
 ./kubewarden-unified-adm-controller-chart-migration.sh \
-  --unified-chart kubewarden/kubewarden-controller --dry-run
+  --unified-chart kubewarden/adm-controller --dry-run
 ```
 
 Interactive mode (pauses before each destructive step):
 
 ```sh
 ./kubewarden-unified-adm-controller-chart-migration.sh \
-  --unified-chart kubewarden/kubewarden-controller --interactive
+  --unified-chart kubewarden/adm-controller --interactive
 ```
 
 Passing custom values to the unified chart:
 
 ```sh
 ./kubewarden-unified-adm-controller-chart-migration.sh \
-  --unified-chart kubewarden/kubewarden-controller \
+  --unified-chart kubewarden/adm-controller \
   --set "image.tag=v2.0.0" \
   --values ./my-custom-values.yaml
 ```
@@ -215,6 +217,23 @@ release name as the legacy `kubewarden-controller` release (usually
 `app.kubernetes.io/instance: <release-name>`. If the name does not
 match, the install fails with an immutable-field error. The script
 detects the legacy release name automatically.
+
+**Chart rename / resource naming.** This chart is named
+`adm-controller`, so a fresh install names its resources after it
+(`app.kubernetes.io/name: adm-controller`, Deployment
+`<release>-adm-controller`). The legacy resources being adopted were
+created by the old `kubewarden-controller` chart and carry
+`app.kubernetes.io/name: kubewarden-controller` in the same immutable
+selector. The script therefore installs with
+`--set nameOverride=<legacy name>` (read from the legacy release's Helm
+values, defaulting to `kubewarden-controller`) so the chart reproduces
+the old names/labels and Server-Side Apply adopts the objects in place.
+This value is stored in the release, so **future upgrades must keep
+it** — run `helm upgrade ... --reuse-values`, or add
+`nameOverride: kubewarden-controller` to your values file. Omitting it
+re-renders `adm-controller`-named selectors and fails on the immutable
+field. (A cluster migrated this way keeps `kubewarden-controller`
+resource names; a brand-new install uses `adm-controller`.)
 
 **Controller gap.** Between the legacy uninstall and the unified
 chart becoming ready, no controller is running. Existing webhook
