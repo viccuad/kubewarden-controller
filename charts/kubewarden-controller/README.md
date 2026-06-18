@@ -15,9 +15,72 @@ helm install kubewarden kubewarden/kubewarden-controller -n kubewarden --create-
 ## Migration from three-chart setup
 
 If you are running the legacy three-chart setup (`kubewarden-crds`,
-`kubewarden-controller`, `kubewarden-defaults`), use the migration
-script (`kubewarden-unified-adm-controller-chart-migration.sh`) to
-move to this chart without admission downtime.
+`kubewarden-controller`, `kubewarden-defaults`), there are two ways to migrate to
+the new single helm chart. Users can use the migration script
+(`kubewarden-unified-adm-controller-chart-migration.sh`) to move to this chart
+without admission downtime. Or uninstall the old Helm charts and reinstall the
+new single Helm chart acknowledging that this procedure will cause down time in the
+policy evaluations.
+
+### Manual reinstallation
+
+This is the simplest migration path. But it will cause the policies to stop
+being evaluated during the process. In the procedure users must backup all the
+policies and policy servers, uninstall the previous Kubewarden stack and
+reinstall the new single Helm chart. Once the stack is installed again, the
+backup resources can be reapplied.
+
+The reinstallation can follow the below steps:
+
+1. Back your policies and policy servers:
+
+```sh
+FILTER='del(.items[].metadata.uid, .items[].metadata.resourceVersion, .items[].metadata.creationTimestamp, .items[].metadata.generation, .items[].metadata.managedFields, .items[].status)'
+
+kubectl get clusteradmissionpolicies -A -o yaml | yq "$FILTER" > clusteradmissionpolicies-backup.yaml
+kubectl get admissionpolicies -A -o yaml | yq "$FILTER" > admissionpolicies-backup.yaml
+kubectl get clusteradmissionpolicygroups -A -o yaml | yq "$FILTER" > clusteradmissionpolicygroups-backup.yaml
+kubectl get admissionpolicygroups -A -o yaml | yq "$FILTER" > admissionpolicygroups-backup.yaml
+kubectl get policyservers -A -o yaml | yq "$FILTER" > policyservers-backup.yaml
+```
+
+2. Uninstall old Helm charts:
+
+```sh
+helm uninstall kubewarden-defaults -n kubewarden
+helm uninstall kubewarden-controller -n kubewarden
+helm uninstall kubewarden-crds -n kubewarden
+```
+
+3. Install the unified Helm chart:
+
+```sh
+helm install kubewarden kubewarden/kubewarden-controller -n kubewarden
+```
+
+It's important to note that the new single Helm chart also unified the values
+files. Thus, your previous values files should work still. Therefore, to have
+the same stack again you can merge all the values files used in the old 3 helm
+charts into one and use in the new Helm chart installation as well:
+
+```sh
+helm install kubewarden kubewarden/kubewarden-controller -n kubewarden --values all-values.yaml
+```
+
+4. Restore policies and policy servers:
+
+```sh
+kubectl apply -f policyservers-backup.yaml
+kubectl apply -f clusteradmissionpolicies-backup.yaml
+kubectl apply -f admissionpolicies-backup.yaml
+kubectl apply -f clusteradmissionpolicygroups-backup.yaml
+kubectl apply -f admissionpolicygroups-backup.yaml
+```
+
+After the reconciliation loop run, the Kubewarden stack should be up and
+running as before.
+
+### Migration script
 
 The migration requires several Helm operations in a specific order:
 adding resource-preservation annotations to the stored release
@@ -44,6 +107,22 @@ What survives the migration:
   stay trusted by the new webhook CA bundles. No TLS rotation
   happens.
 
+To facilitate the migration process the Kubewarden team provided a script that
+perform all the required operation to allow a migration to the unified Helm
+chart with no downtime. To be able to use the script users must be aware of the
+prerequisites listed below.
+
+If for some reason some of the prerequisites is not possible user should backup
+all the resources they currently have which is the policy servers and policies
+and reinstall them after the reinstallation of the stack. This means that the
+migration will cause down time in the policy evaluation.
+
+> [!WARNING]
+> The Kubewarden team test the migration path as much as possible. But it is
+> still recommended to backup policies and policy server definitions just in
+> case something unexpected happens. Therefore, it will be easier to restore to
+> the previous state if necessary.
+
 ### Prerequisites
 
 - Helm v4+ (needed for Server-Side Apply and post-renderer plugins)
@@ -51,8 +130,6 @@ What survives the migration:
 - yq v4 (github.com/mikefarah/yq) for the post-renderer
 - jq for detecting installed chart versions
 - The three legacy releases must be installed in your cluster
-
-### What the script does
 
 The script runs five phases:
 
@@ -115,19 +192,19 @@ Passing custom values to the unified chart:
 
 #### Available flags
 
-| Flag | Description |
-|------|-------------|
-| `--unified-chart PATH_OR_NAME` | Required. Local tarball or Helm repo chart name |
-| `--namespace NS` | Namespace of the Kubewarden installation (default: `kubewarden`) |
-| `--kube-context CTX` | Kubernetes context to use (default: current context) |
-| `--repo-name NAME` | Helm repo name (default: `kubewarden`) |
-| `--repo-url URL` | Helm repo URL (default: `https://charts.kubewarden.io`) |
-| `--timeout DURATION` | Timeout for Helm operations (default: `5m`) |
-| `--set KEY=VALUE` | Set a value for the unified chart install (repeatable) |
-| `--values FILE` / `-f FILE` | Values file for the unified chart install (repeatable) |
-| `--interactive` | Pause for confirmation before destructive steps |
-| `--dry-run` | Show what would be done without making changes |
-| `--help` | Print usage information |
+| Flag                           | Description                                                      |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `--unified-chart PATH_OR_NAME` | Required. Local tarball or Helm repo chart name                  |
+| `--namespace NS`               | Namespace of the Kubewarden installation (default: `kubewarden`) |
+| `--kube-context CTX`           | Kubernetes context to use (default: current context)             |
+| `--repo-name NAME`             | Helm repo name (default: `kubewarden`)                           |
+| `--repo-url URL`               | Helm repo URL (default: `https://charts.kubewarden.io`)          |
+| `--timeout DURATION`           | Timeout for Helm operations (default: `5m`)                      |
+| `--set KEY=VALUE`              | Set a value for the unified chart install (repeatable)           |
+| `--values FILE` / `-f FILE`    | Values file for the unified chart install (repeatable)           |
+| `--interactive`                | Pause for confirmation before destructive steps                  |
+| `--dry-run`                    | Show what would be done without making changes                   |
+| `--help`                       | Print usage information                                          |
 
 ### Caveats
 
