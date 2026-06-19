@@ -29,8 +29,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 HAULER_MANIFEST="$REPO_ROOT/charts/hauler_manifest.yaml"
-CONTROLLER_VALUES="$REPO_ROOT/charts/adm-controller/values.yaml"
-CONTROLLER_CHART="$REPO_ROOT/charts/adm-controller/Chart.yaml"
+CONTROLLER_VALUES="$REPO_ROOT/charts/admission-controller/values.yaml"
+CONTROLLER_CHART="$REPO_ROOT/charts/admission-controller/Chart.yaml"
 
 ERRORS=0
 
@@ -98,7 +98,7 @@ echo "===================================="
 echo
 
 # Extract policy-reporter chart metadata from the vendored chart
-POLICY_REPORTER_CHART_PATH="$REPO_ROOT/charts/adm-controller/charts"
+POLICY_REPORTER_CHART_PATH="$REPO_ROOT/charts/admission-controller/charts"
 POLICY_REPORTER_CHART_VERSION=$(yq -e eval '.dependencies[] | select(.name == "policy-reporter") | .version' "$CONTROLLER_CHART")
 POLICY_REPORTER_TGZ="$POLICY_REPORTER_CHART_PATH/policy-reporter-${POLICY_REPORTER_CHART_VERSION}.tgz"
 
@@ -164,10 +164,10 @@ get_hauler_chart_version() {
     yq eval ".spec.charts[] | select(.name == \"$chart_name\") | .version" "$HAULER_MANIFEST"
 }
 
-# Validate adm-controller chart
+# Validate admission-controller chart
 CHART_VERSION=$(yq eval '.version' "$CONTROLLER_CHART")
-HAULER_VERSION=$(get_hauler_chart_version "adm-controller")
-compare_version "adm-controller chart" "$CHART_VERSION" "$HAULER_VERSION" "$CONTROLLER_CHART"
+HAULER_VERSION=$(get_hauler_chart_version "admission-controller")
+compare_version "admission-controller chart" "$CHART_VERSION" "$HAULER_VERSION" "$CONTROLLER_CHART"
 
 # Validate policy-reporter chart (from kubewarden-controller dependencies)
 CHART_VERSION=$(yq eval '.dependencies[] | select(.name == "policy-reporter") | .version' "$CONTROLLER_CHART")

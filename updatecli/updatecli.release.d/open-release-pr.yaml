@@ -1,4 +1,4 @@
-name: Update adm-controller chart versions
+name: Update admission-controller chart versions
 pipelineid: "{{ .pipelineid }}"
 
 # This updatecli pipeline receives as input a RELEASE_VERSION env var with the
@@ -34,7 +34,7 @@ sources:
     transformers:
       - semverinc: minor
     spec:
-      file: charts/adm-controller/Chart.yaml
+      file: charts/admission-controller/Chart.yaml
       key: $.version
   crdsChartVersion:
     name: "Get latest kubewarden-crds helm version"
@@ -71,7 +71,7 @@ conditions:
     spec:
       file: "./charts/hauler_manifest.yaml"
       key: "$.spec.charts[1].name"
-      value: "adm-controller"
+      value: "admission-controller"
   kubewardenDefaultsChartPosition:
     kind: yaml
     disablesourceinput: true
@@ -136,7 +136,7 @@ targets:
     kind: yaml
     sourceid: controllerChartVersion
     spec:
-      file: charts/adm-controller/Chart.yaml
+      file: charts/admission-controller/Chart.yaml
       key: $.version
   update_kubewarden_controller_helm_appversion:
     scmid: default
@@ -144,7 +144,7 @@ targets:
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
-      file: charts/adm-controller/Chart.yaml
+      file: charts/admission-controller/Chart.yaml
       key: $.appVersion
   update_kubewarden_controller_auto_install_annotation:
     name: "Update kubewarden-controller auto-install annotation"
@@ -152,7 +152,7 @@ targets:
     sourceid: crdsChartVersion
     scmid: "default"
     spec:
-      file: "file://charts/adm-controller/Chart.yaml"
+      file: "file://charts/admission-controller/Chart.yaml"
       key: 'annotations.catalog\.cattle\.io/auto-install'
       value: 'kubewarden-crds={{ source "crdsChartVersion" }}'
   update_kubewarden_defaults_helm_version:
@@ -186,7 +186,7 @@ targets:
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
-      file: charts/adm-controller/values.yaml
+      file: charts/admission-controller/values.yaml
       key: $.image.tag
   update_audit_scanner_image_tag:
     scmid: default
@@ -194,7 +194,7 @@ targets:
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
-      file: charts/adm-controller/values.yaml
+      file: charts/admission-controller/values.yaml
       key: $.auditScanner.image.tag
   update_policy_server_image_tag:
     scmid: default
@@ -210,7 +210,7 @@ targets:
     kind: file
     sourceid: readmeFile
     spec:
-      file: charts/adm-controller/README.md
+      file: charts/admission-controller/README.md
       forcecreate: true
   generate_values_schema:
     kind: shell
@@ -222,7 +222,7 @@ targets:
         kind: file/checksum
         spec:
           files:
-            - charts/adm-controller/values.schema.json
+            - charts/admission-controller/values.schema.json
       command: |
         make generate-chart
   updateCargoTomlVersion:
@@ -257,7 +257,7 @@ scms:
       commitmessage:
         squash: true
         type: "chore"
-        title: "update adm-controller Helm charts"
+        title: "update admission-controller Helm charts"
         hidecredit: true
         footers: "Signed-off-by: adm-controller bot <adm-controller-bot@users.noreply.github.com>"
 

@@ -399,12 +399,12 @@ function install_kubewarden() {
         --dry-run=client -o yaml | kubectl apply -f -
 
     echo -e "${GREEN}  Installing kubewarden-controller (unified chart)...${NC}"
-    helm upgrade --install kubewarden-controller ./charts/adm-controller \
+    helm upgrade --install kubewarden-controller ./charts/admission-controller \
         -n "$KUBEWARDEN_NAMESPACE" \
         --set replicas=1 \
         --wait
 
-    echo -e "${GREEN}  Waiting for adm-controller rollout...${NC}"
+    echo -e "${GREEN}  Waiting for admission-controller rollout...${NC}"
     kubectl rollout status deployment/kubewarden-kubewarden-controller \
         -n "$KUBEWARDEN_NAMESPACE" --timeout=3m
 }
@@ -439,7 +439,7 @@ function configure_policy_server() {
     build_image_flags
     image_flags=("${IMAGE_FLAGS[@]}")
 
-    helm upgrade --install kubewarden-controller ./charts/adm-controller \
+    helm upgrade --install kubewarden-controller ./charts/admission-controller \
         -n "$KUBEWARDEN_NAMESPACE" \
         --set replicas=1 \
         --set 'policyServer.sigstoreTrustConfig'="$SIGSTORE_TRUST_CONFIGMAP" \
@@ -462,7 +462,7 @@ function install_kubewarden_no_sigstore() {
     build_image_flags
     image_flags=("${IMAGE_FLAGS[@]}")
 
-    helm upgrade --install kubewarden-controller ./charts/adm-controller \
+    helm upgrade --install kubewarden-controller ./charts/admission-controller \
         -n "$KUBEWARDEN_NAMESPACE" \
         --set replicas=1 \
         --set 'policyServer.env[0].name=KUBEWARDEN_LOG_LEVEL' \
