@@ -578,6 +578,17 @@ phase_uninstall_legacy() {
 phase_build_merged_values() {
   step "Phase: build merged values from legacy releases"
 
+  # Refuse to clobber an existing file (it may be a previous run's output or a
+  # user-managed file holding real config). Prompt in interactive mode, fail
+  # fast otherwise.
+  if [[ -e "$MERGED_VALUES_FILE" ]]; then
+    if (( INTERACTIVE == 1 )); then
+      confirm "merged values file $MERGED_VALUES_FILE already exists and will be overwritten."
+    else
+      fail "merged values file $MERGED_VALUES_FILE already exists; remove it or set MERGED_VALUES_FILE to a new path"
+    fi
+  fi
+
   : > "$MERGED_VALUES_FILE"
 
   local entry release vals
