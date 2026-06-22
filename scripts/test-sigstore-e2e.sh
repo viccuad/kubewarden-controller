@@ -405,7 +405,7 @@ function install_kubewarden() {
         --wait
 
     echo -e "${GREEN}  Waiting for admission-controller rollout...${NC}"
-    kubectl rollout status deployment/kubewarden-kubewarden-controller \
+    kubectl rollout status deployment/kubewarden-controller-admission-controller \
         -n "$KUBEWARDEN_NAMESPACE" --timeout=3m
 }
 
