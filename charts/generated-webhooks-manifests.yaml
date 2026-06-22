@@ -1,4 +1,4 @@
-# to be merged manually into kubewarden-controller/templates/webhooks.yaml
+# to be merged manually into admission-controller/templates/webhooks.yaml
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration

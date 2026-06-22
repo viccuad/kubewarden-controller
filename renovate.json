@@ -24,7 +24,7 @@
         "kubewarden/adm-controller/audit-scanner"
       ],
       "matchPaths": [
-        "charts/kubewarden-controller/values.yaml"
+        "charts/admission-controller/values.yaml"
       ],
       "enabled": false
     },

@@ -60,7 +60,7 @@ const (
 // because they are wrapped in Helm conditionals and cannot be parsed as plain
 // YAML by envtest.
 func kubewardenCRDPaths() []string {
-	dir := filepath.Join("..", "..", "charts", "kubewarden-controller", "templates", "crds")
+	dir := filepath.Join("..", "..", "charts", "admission-controller", "templates", "crds")
 	return []string{
 		filepath.Join(dir, "policies.kubewarden.io_admissionpolicies.yaml"),
 		filepath.Join(dir, "policies.kubewarden.io_admissionpolicygroups.yaml"),

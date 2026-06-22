@@ -56,7 +56,7 @@ metadata:
   name: kubewarden-helm-charts
 spec:
   charts:
-    - name: kubewarden-controller
+    - name: admission-controller
       repoURL: https://charts.kubewarden.io
       version: 6.0.0-alpha.1
     - name: policy-reporter
