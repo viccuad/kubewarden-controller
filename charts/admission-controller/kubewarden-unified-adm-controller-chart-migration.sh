@@ -63,6 +63,7 @@
 #       [--values FILE]
 #       [--interactive]
 #       [--dry-run]
+#       [--verbose]
 #       [--help]
 #
 # Examples:
@@ -91,6 +92,7 @@ HELM_REPO_URL="${HELM_REPO_URL:-https://charts.kubewarden.io}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-5m}"
 INTERACTIVE=0
 DRY_RUN=0
+VERBOSE=0
 
 # Extra arguments forwarded to `helm install` for the unified chart.
 HELM_INSTALL_EXTRA_ARGS=()
@@ -166,6 +168,8 @@ while (( $# > 0 )); do
       INTERACTIVE=1; shift ;;
     --dry-run)
       DRY_RUN=1; shift ;;
+    --verbose)
+      VERBOSE=1; shift ;;
     --set)
       require_flag_value "$1" "${2:-}"; HELM_INSTALL_EXTRA_ARGS+=(--set "$2"); shift 2 ;;
     --set=*)
@@ -623,8 +627,15 @@ phase_build_merged_values() {
   } >> "$MERGED_VALUES_FILE"
 
   ok "merged values written to $MERGED_VALUES_FILE"
-  info "merged values:"
-  sed 's/^/      /' "$MERGED_VALUES_FILE"
+  # The merged values come from `helm get values` and may carry sensitive
+  # user-supplied config, so only dump the full contents under --verbose;
+  # otherwise just point at the file.
+  if (( VERBOSE == 1 )); then
+    info "merged values:"
+    sed 's/^/      /' "$MERGED_VALUES_FILE"
+  else
+    info "re-run with --verbose to print the merged values"
+  fi
 }
 
 #------------------------------------------------------------------------------
