@@ -116,10 +116,6 @@ LEGACY_RELEASES=(
 # Detected at runtime.
 LEGACY_CONTROLLER_RELEASE_NAME=""
 RECOMMENDED_POLICIES=()
-# Raw user-supplied nameOverride of the legacy controller release ("" if the
-# user never set it). Used to decide whether the merged values need a filled-in
-# nameOverride.
-LEGACY_CONTROLLER_NAMEOVERRIDE=""
 # Values file built by concatenating the three legacy releases' user values.
 MERGED_VALUES_FILE="${MERGED_VALUES_FILE:-./kw-merged-values.yaml}"
 # nameOverride to pass to the unified chart so it renders the SAME resource
@@ -356,7 +352,6 @@ phase_preflight() {
   local legacy_name_override
   legacy_name_override="$(hctl get values "$LEGACY_CONTROLLER_RELEASE_NAME" -n "$KW_NAMESPACE" -o json 2>/dev/null \
                           | jq -r '.nameOverride // empty' 2>/dev/null || true)"
-  LEGACY_CONTROLLER_NAMEOVERRIDE="$legacy_name_override"
   if [[ -n "$legacy_name_override" ]]; then
     LEGACY_NAME_OVERRIDE="$legacy_name_override"
     info "legacy release set a custom nameOverride: '$LEGACY_NAME_OVERRIDE'"
@@ -595,6 +590,10 @@ phase_build_merged_values() {
       info "$release: no user-supplied values"
       continue
     fi
+    # Strip any top-level nameOverride; it is reconciled to a single
+    # authoritative value below (avoids duplicate keys when a legacy release
+    # stored nameOverride: "").
+    vals="$(printf '%s\n' "$vals" | grep -v '^nameOverride:' || true)"
     info "$release: appending user-supplied values"
     {
       printf '# values from legacy release: %s\n' "$release"
@@ -602,17 +601,15 @@ phase_build_merged_values() {
     } >> "$MERGED_VALUES_FILE"
   done
 
-  # Reconcile nameOverride. The unified chart was renamed to "adm-controller",
-  # so an empty/absent nameOverride renders app.kubernetes.io/name=adm-controller
-  # and breaks in-place adoption of the live kubewarden-controller resources. If
-  # the legacy controller release set a non-empty nameOverride it is already in
-  # the appended block above; otherwise fill it with the legacy effective name.
-  if [[ -z "$LEGACY_CONTROLLER_NAMEOVERRIDE" ]]; then
-    {
-      printf '# nameOverride filled in by migration (legacy chart default name)\n'
-      printf 'nameOverride: %s\n' "$LEGACY_NAME_OVERRIDE"
-    } >> "$MERGED_VALUES_FILE"
-  fi
+  # Reconcile nameOverride. The unified chart is named "admission-controller",
+  # so an empty/absent nameOverride renders app.kubernetes.io/name=admission-controller
+  # and breaks in-place adoption of the live kubewarden-controller resources.
+  # LEGACY_NAME_OVERRIDE already holds the legacy effective name (custom or the
+  # kubewarden-controller default), so we always write exactly one nameOverride.
+  {
+    printf '# nameOverride reconciled by migration (legacy effective name)\n'
+    printf 'nameOverride: %s\n' "$LEGACY_NAME_OVERRIDE"
+  } >> "$MERGED_VALUES_FILE"
 
   ok "merged values written to $MERGED_VALUES_FILE"
   info "merged values:"
