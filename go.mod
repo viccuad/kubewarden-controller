@@ -20,7 +20,7 @@ require (
 	k8s.io/apimachinery v0.36.2
 	k8s.io/apiserver v0.36.2
 	k8s.io/client-go v0.36.2
-	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
+	k8s.io/utils v0.0.0-20260617174310-a95e086a2553
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/e2e-framework v0.7.0
 	sigs.k8s.io/wg-policy-prototypes v0.0.0-20230505033312-51c21979086a
@@ -30,7 +30,7 @@ require (
 // CEL needs to be pinned to the same version as the one used by the k8s.io/apiserver package
 replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
-replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.4.3
+replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.5.0
 
 replace sigs.k8s.io/wg-policy-prototypes => sigs.k8s.io/wg-policy-prototypes v0.0.0-20230505033312-51c21979086a
 
