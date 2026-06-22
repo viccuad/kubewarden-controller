@@ -288,6 +288,31 @@ CRDs are installed with the `helm.sh/resource-policy: keep` annotation:
 - `helm upgrade` updates CRDs normally
 - `helm uninstall` does not delete CRDs, which prevents cascade-deletion of all PolicyServers and policies in the cluster
 
+#### Reinstalling under a different release name or namespace
+
+Because the CRDs are kept on uninstall, they survive with the Helm
+ownership metadata of the release that created them
+(`meta.helm.sh/release-name` and `meta.helm.sh/release-namespace`). Helm
+checks this metadata on the next install:
+
+- Same release name **and** namespace: Helm adopts the existing CRDs and
+  the install succeeds.
+- Different release name **or** namespace: Helm refuses to take over the
+  CRDs and the install fails with:
+
+  ```
+  Error: ... invalid ownership metadata; annotation
+  meta.helm.sh/release-name must equal "<new>": current value is "<old>"
+  ```
+
+This is expected: the CRDs still belong to the previous release. To adopt
+them into the new release, install with `--take-ownership` (Helm 3.18+ or
+Helm 4), which re-stamps the ownership metadata:
+
+```sh
+helm install <release> <chart> -n <namespace> --take-ownership
+```
+
 ## Uninstall
 
 ```sh
