@@ -461,7 +461,8 @@ policyServer:
   #insecureSources:
   #  - "source1"
   #  - "source2"
-  insecureSources: [] # @schema item: string
+  # @schema item: string
+  insecureSources: [] 
   # sourceAuthorities is a list of the URIs and their PEM encoded certificates
   # used to authenticate them
   #
@@ -477,7 +478,8 @@ policyServer:
   #   - uri: "uri3"
   #     certs:
   #       - "cert4"
-  sourceAuthorities: [] # @schema type:[array]
+  # @schema type:[array]
+  sourceAuthorities: [] 
   # namespacedPoliciesCapabilities lists host capability API calls allowed
   # for namespaced policies running on this PolicyServer.
   # Supported patterns: [] (none), "*" (all), "category/*",
