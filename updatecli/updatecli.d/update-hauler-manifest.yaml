@@ -151,8 +151,8 @@ actions:
         > REMEMBER USING SQUASH MERGE FOR THIS PR
 
         ## Update Checklist
-        - [ ] I have checked that the kubewarden-defaults values `recommendedPolicies.*.settings` are up to date
-        - [ ] I have updated charts/kubewarden-defaults/questions.yaml from those of the policies
+        - [ ] I have checked that the admission-controller values `recommendedPolicies.*.settings` are up to date
+        - [ ] I have updated charts/admission-controller/questions.yaml from those of the policies
       #     {{ if .pr.reviewrs }}
       reviewers:
         #           {{ range .pr.reviewers }}
