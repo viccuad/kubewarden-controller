@@ -224,13 +224,16 @@ detects the legacy release name automatically.
 `<release>-admission-controller`). The legacy resources being adopted were
 created by the old `kubewarden-controller` chart and carry
 `app.kubernetes.io/name: kubewarden-controller` in the same immutable
-selector. The script therefore installs with
-`--set nameOverride=<legacy name>` (read from the legacy release's Helm
-values, defaulting to `kubewarden-controller`) so the chart reproduces
-the old names/labels and Server-Side Apply adopts the objects in place.
-This value is stored in the release, so **future upgrades must keep
-it** — run `helm upgrade ... --reuse-values`, or add
-`nameOverride: kubewarden-controller` to your values file. Omitting it
+selector. The migration script builds a values file by concatenating
+`helm get values` from the three legacy releases (`kubewarden-crds`,
+`kubewarden-controller`, `kubewarden-defaults`) and writes a reconciled
+`nameOverride` into it (filled with `kubewarden-controller` only when
+you had not set it) so the chart reproduces the old names/labels and
+Server-Side Apply adopts the objects in place. Any `--set`/`--values`
+you pass to the script override the merged values. These values are
+stored in the release, so **future upgrades must keep them** — run
+`helm upgrade ... --reuse-values`, or pass the generated
+`kw-merged-values.yaml` with `--values`. Dropping `nameOverride`
 re-renders `admission-controller`-named selectors and fails on the immutable
 field. (A cluster migrated this way keeps `kubewarden-controller`
 resource names; a brand-new install uses `admission-controller`.)
@@ -241,6 +244,18 @@ configurations are still served by the surviving policy-server pods,
 so admission for active policies keeps working. New policy CRs
 created during this window are not reconciled into webhooks until
 the new controller starts.
+
+**Legacy defaults not carried over.** The migration script uses
+`helm get values` (user-supplied overrides only, not `--all`) to build
+the merged values file. Settings that were only legacy chart
+*defaults* (never explicitly set by you) are not carried over. If you
+relied on them, pass them with `--set` or `--values`. Notably, the
+unified chart defaults are `recommendedPolicies.enabled: false` and
+`recommendedPolicies.defaultPolicyMode: "monitor"` (the script no
+longer forces `enabled=true` / `protect`). If the legacy defaults chart
+enabled recommended policies by default and you never overrode that,
+pass `--set recommendedPolicies.enabled=true` and
+`--set recommendedPolicies.defaultPolicyMode=protect` to keep them.
 
 **Settings drift.** The DefaultsApplier rewrites each recommended
 policy's spec to match the values you pass to the unified chart. If

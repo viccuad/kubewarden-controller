@@ -31,9 +31,11 @@
 #      chart. Two things make in-place adoption work despite the chart rename:
 #      the release name must match the legacy kubewarden-controller release
 #      name (preserves the app.kubernetes.io/instance selector label), and the
-#      install passes --set nameOverride=<legacy name> (preserves the
-#      app.kubernetes.io/name selector label). The legacy name is read from the
-#      legacy release's Helm values in preflight. Helm 4 uses Server-Side Apply
+#      install passes a merged values file (the concatenation of the three
+#      legacy releases' `helm get values`) that carries a reconciled
+#      nameOverride (preserves the app.kubernetes.io/name selector label). The
+#      legacy name is read from the legacy release's Helm values in preflight.
+#      Helm 4 uses Server-Side Apply
 #      to adopt existing resources and strip the legacy keep annotations from
 #      chart-rendered resources.
 #
@@ -61,6 +63,7 @@
 #       [--values FILE]
 #       [--interactive]
 #       [--dry-run]
+#       [--verbose]
 #       [--help]
 #
 # Examples:
@@ -89,6 +92,7 @@ HELM_REPO_URL="${HELM_REPO_URL:-https://charts.kubewarden.io}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-5m}"
 INTERACTIVE=0
 DRY_RUN=0
+VERBOSE=0
 
 # Extra arguments forwarded to `helm install` for the unified chart.
 HELM_INSTALL_EXTRA_ARGS=()
@@ -114,6 +118,8 @@ LEGACY_RELEASES=(
 # Detected at runtime.
 LEGACY_CONTROLLER_RELEASE_NAME=""
 RECOMMENDED_POLICIES=()
+# Values file built by concatenating the three legacy releases' user values.
+MERGED_VALUES_FILE="${MERGED_VALUES_FILE:-./kw-merged-values.yaml}"
 # nameOverride to pass to the unified chart so it renders the SAME resource
 # names/labels as the legacy chart (required for in-place adoption — see
 # phase_install_unified). Defaults to the well-known legacy chart name and is
@@ -162,6 +168,8 @@ while (( $# > 0 )); do
       INTERACTIVE=1; shift ;;
     --dry-run)
       DRY_RUN=1; shift ;;
+    --verbose)
+      VERBOSE=1; shift ;;
     --set)
       require_flag_value "$1" "${2:-}"; HELM_INSTALL_EXTRA_ARGS+=(--set "$2"); shift 2 ;;
     --set=*)
@@ -354,7 +362,7 @@ phase_preflight() {
   else
     info "legacy release used the default chart name: nameOverride='$LEGACY_NAME_OVERRIDE'"
   fi
-  info "unified chart will be installed with --set nameOverride=$LEGACY_NAME_OVERRIDE (preserves legacy resource identity)"
+  info "merged values file will carry nameOverride=$LEGACY_NAME_OVERRIDE (preserves legacy resource identity)"
 
   # Validate unified chart source.
   if [[ -f "$UNIFIED_CHART" ]]; then
@@ -564,6 +572,73 @@ phase_uninstall_legacy() {
 }
 
 #------------------------------------------------------------------------------
+# Build the merged values file from the three legacy releases.
+#
+# The unified chart's values are the concatenation of the three legacy charts'
+# values (their key namespaces are effectively disjoint), so we simply append
+# each release's user-supplied values into one file — no deep merge. Runs before
+# the legacy uninstall because `helm get values` needs the releases to exist.
+#------------------------------------------------------------------------------
+phase_build_merged_values() {
+  step "Phase: build merged values from legacy releases"
+
+  # Refuse to clobber an existing file (it may be a previous run's output or a
+  # user-managed file holding real config). Prompt in interactive mode, fail
+  # fast otherwise.
+  if [[ -e "$MERGED_VALUES_FILE" ]]; then
+    if (( INTERACTIVE == 1 )); then
+      confirm "merged values file $MERGED_VALUES_FILE already exists and will be overwritten."
+    else
+      fail "merged values file $MERGED_VALUES_FILE already exists; remove it or set MERGED_VALUES_FILE to a new path"
+    fi
+  fi
+
+  : > "$MERGED_VALUES_FILE"
+
+  local entry release vals
+  for entry in "${LEGACY_RELEASES[@]}"; do
+    release="${entry%%=*}"
+    vals="$(hctl get values "$release" -n "$KW_NAMESPACE" -o yaml 2>/dev/null || true)"
+    # `helm get values -o yaml` prints "null" (or nothing) when the release has
+    # no user-supplied values; skip those.
+    if [[ -z "$vals" || "$vals" == "null" ]]; then
+      info "$release: no user-supplied values"
+      continue
+    fi
+    # Strip any top-level nameOverride; it is reconciled to a single
+    # authoritative value below (avoids duplicate keys when a legacy release
+    # stored nameOverride: "").
+    vals="$(printf '%s\n' "$vals" | grep -v '^nameOverride:' || true)"
+    info "$release: appending user-supplied values"
+    {
+      printf '# values from legacy release: %s\n' "$release"
+      printf '%s\n' "$vals"
+    } >> "$MERGED_VALUES_FILE"
+  done
+
+  # Reconcile nameOverride. The unified chart is named "admission-controller",
+  # so an empty/absent nameOverride renders app.kubernetes.io/name=admission-controller
+  # and breaks in-place adoption of the live kubewarden-controller resources.
+  # LEGACY_NAME_OVERRIDE already holds the legacy effective name (custom or the
+  # kubewarden-controller default), so we always write exactly one nameOverride.
+  {
+    printf '# nameOverride reconciled by migration (legacy effective name)\n'
+    printf 'nameOverride: %s\n' "$LEGACY_NAME_OVERRIDE"
+  } >> "$MERGED_VALUES_FILE"
+
+  ok "merged values written to $MERGED_VALUES_FILE"
+  # The merged values come from `helm get values` and may carry sensitive
+  # user-supplied config, so only dump the full contents under --verbose;
+  # otherwise just point at the file.
+  if (( VERBOSE == 1 )); then
+    info "merged values:"
+    sed 's/^/      /' "$MERGED_VALUES_FILE"
+  else
+    info "re-run with --verbose to print the merged values"
+  fi
+}
+
+#------------------------------------------------------------------------------
 # Phase 5: Install unified chart
 #------------------------------------------------------------------------------
 phase_install_unified() {
@@ -576,29 +651,33 @@ phase_install_unified() {
 
   confirm "About to run 'helm install $release_name --take-ownership' to adopt existing resources."
 
-  # nameOverride=$LEGACY_NAME_OVERRIDE is REQUIRED for the migration.
+  # Install from the merged legacy values (see phase_build_merged_values) instead
+  # of hardcoded --set flags, so the migrated release keeps the configuration the
+  # user actually had on the legacy stack. The merged file also carries the
+  # reconciled nameOverride, which preserves the legacy app.kubernetes.io/name so
+  # Helm 4 Server-Side Apply adopts the existing objects in place rather than
+  # failing on the immutable Deployment selector (reusing the legacy release name
+  # preserves app.kubernetes.io/instance).
   #
   # The unified chart is now named "admission-controller", so by default it renders
   # resources with the new identity (app.kubernetes.io/name=admission-controller,
   # Deployment <release>-admission-controller, etc.). The live legacy resources we are
   # adopting were created by the old "kubewarden-controller" chart and carry the
-  # legacy app.kubernetes.io/name in their immutable Deployment selectors.
-  # Pinning nameOverride to the detected legacy name (see phase_preflight) makes
-  # the unified chart render the OLD app.kubernetes.io/name; reusing the legacy
-  # release name (above) preserves the OLD app.kubernetes.io/instance. With both
-  # immutable selector labels matched, Helm 4 Server-Side Apply adopts the
+  # legacy app.kubernetes.io/name in their immutable Deployment selectors. The merged
+  # values file carries the reconciled nameOverride (see phase_build_merged_values),
+  # which makes the unified chart render the OLD app.kubernetes.io/name; reusing the
+  # legacy release name (above) preserves the OLD app.kubernetes.io/instance. With
+  # both immutable selector labels matched, Helm 4 Server-Side Apply adopts the
   # existing objects in place instead of failing on the immutable selector.
   #
-  # This value is stored in the release: future `helm upgrade --reuse-values`
-  # (or a values file carrying nameOverride: $LEGACY_NAME_OVERRIDE) keeps it.
-  if dry_run_guard "helm install $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --take-ownership --set nameOverride=$LEGACY_NAME_OVERRIDE --set policyServer.enabled=true --set recommendedPolicies.enabled=true ${HELM_INSTALL_EXTRA_ARGS[*]:-}"; then
+  # User-passed --set/--values (HELM_INSTALL_EXTRA_ARGS) come last so they
+  # override the merged values. These values are stored in the release, so future
+  # `helm upgrade --reuse-values` keeps them.
+  if dry_run_guard "helm install $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --take-ownership --values $MERGED_VALUES_FILE ${HELM_INSTALL_EXTRA_ARGS[*]:-}"; then
     hctl install "$release_name" "$UNIFIED_CHART" \
       --namespace "$KW_NAMESPACE" \
       --take-ownership \
-      --set "nameOverride=$LEGACY_NAME_OVERRIDE" \
-      --set "policyServer.enabled=true" \
-      --set "recommendedPolicies.enabled=true" \
-      --set "recommendedPolicies.defaultPolicyMode=protect" \
+      --values "$MERGED_VALUES_FILE" \
       "${HELM_INSTALL_EXTRA_ARGS[@]}" \
       --wait --timeout "$WAIT_TIMEOUT"
     ok "unified chart installed"
@@ -706,6 +785,7 @@ phase_install_unified() {
 #------------------------------------------------------------------------------
 phase_preflight
 phase_snapshot
+phase_build_merged_values
 phase_inject_keep_annotations
 phase_uninstall_legacy
 phase_install_unified
@@ -717,9 +797,11 @@ info "Log saved to: $LOG_FILE"
 info ""
 info "Next steps:"
 info "  - Verify your PolicyServers and policies are working as expected"
-info "  - IMPORTANT: this release was installed with nameOverride=$LEGACY_NAME_OVERRIDE"
-info "    to preserve the legacy resource names/labels (immutable Deployment"
-info "    selector). Future upgrades MUST keep this value, e.g. run"
-info "    'helm upgrade ... --reuse-values' or add 'nameOverride: $LEGACY_NAME_OVERRIDE'"
-info "    to your values file. Omitting it would re-render admission-controller-named"
-info "    selectors and fail on the immutable field."
+info "  - The unified chart was installed from the merged legacy values at:"
+info "      $MERGED_VALUES_FILE"
+info "    Keep this file. It carries nameOverride=$LEGACY_NAME_OVERRIDE, which"
+info "    preserves the legacy resource names/labels (immutable Deployment"
+info "    selector). Future upgrades MUST keep these values, e.g. run"
+info "    'helm upgrade ... --reuse-values' or pass '--values $MERGED_VALUES_FILE'."
+info "    Dropping nameOverride would re-render admission-controller-named selectors"
+info "    and fail on the immutable field."
