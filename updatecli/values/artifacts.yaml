@@ -21,29 +21,29 @@ ociArtifacts:
     image: "ghcr.io/kubewarden/adm-controller/audit-scanner"
     workflowUrl: "https://github.com/kubewarden/adm-controller/.github/workflows/release.yml@refs/tags"
     skipVersionFromRegistry: true
-  - file: "charts/kubewarden-defaults/values.yaml"
+  - file: "charts/admission-controller/values.yaml"
     key: "$.policyServer.image.tag"
     image: "ghcr.io/kubewarden/adm-controller/policy-server"
     workflowUrl: "https://github.com/kubewarden/adm-controller/.github/workflows/release.yml@refs/tags"
     skipVersionFromRegistry: true
   # Policies
   - image: ghcr.io/kubewarden/policies/allow-privilege-escalation-psp
-    file: "charts/kubewarden-defaults/values.yaml"
+    file: "charts/admission-controller/values.yaml"
     key: "$.recommendedPolicies.allowPrivilegeEscalationPolicy.module.tag"
   - image: ghcr.io/kubewarden/policies/host-namespaces-psp
-    file: "charts/kubewarden-defaults/values.yaml"
+    file: "charts/admission-controller/values.yaml"
     key: "$.recommendedPolicies.hostNamespacePolicy.module.tag"
   - image: ghcr.io/kubewarden/policies/pod-privileged
-    file: "charts/kubewarden-defaults/values.yaml"
+    file: "charts/admission-controller/values.yaml"
     key: "$.recommendedPolicies.podPrivilegedPolicy.module.tag"
   - image: ghcr.io/kubewarden/policies/user-group-psp
-    file: "charts/kubewarden-defaults/values.yaml"
+    file: "charts/admission-controller/values.yaml"
     key: "$.recommendedPolicies.userGroupPolicy.module.tag"
   - image: ghcr.io/kubewarden/policies/hostpaths-psp
-    file: "charts/kubewarden-defaults/values.yaml"
+    file: "charts/admission-controller/values.yaml"
     key: "$.recommendedPolicies.hostPathsPolicy.module.tag"
   - image: ghcr.io/kubewarden/policies/capabilities-psp
-    file: "charts/kubewarden-defaults/values.yaml"
+    file: "charts/admission-controller/values.yaml"
     key: "$.recommendedPolicies.capabilitiesPolicy.module.tag"
   # Third party dependencies
   - image: ghcr.io/rancher/kuberlr-kubectl
@@ -53,18 +53,12 @@ ociArtifacts:
 # updated regularly. This list should be in the same order as defined in the
 # charts/hauler_manifest.yaml file.
 helmCharts:
-  - name: kubewarden-crds
-    file: "charts/kubewarden-crds/Chart.yaml"
-    versionKey: "$.version"
   - name: admission-controller
     file: "charts/admission-controller/Chart.yaml"
     versionKey: "$.version"
-  - name: kubewarden-defaults
-    file: "charts/kubewarden-defaults/Chart.yaml"
-    versionKey: "$.version"
   - name: policy-reporter
     file: "charts/admission-controller/Chart.yaml"
-    versionKey: "$.dependencies[0].version"
+    versionKey: "$.dependencies[1].version"
     repository: https://kyverno.github.io/policy-reporter
   - name: openreports
     file: "charts/kubewarden-crds/Chart.yaml"
@@ -83,7 +77,7 @@ kubewardenContainerImage:
     image: "ghcr.io/kubewarden/adm-controller/audit-scanner"
     workflowUrl: "https://github.com/kubewarden/audit-scanner/.github/workflows/release.yml@refs/tags"
   - name: "policyServer"
-    file: "charts/kubewarden-defaults/values.yaml"
+    file: "charts/admission-controller/values.yaml"
     key: "$.policyServer.image.tag"
     image: "ghcr.io/kubewarden/adm-controller/policy-server"
     workflowUrl: "https://github.com/kubewarden/policy-server/.github/workflows/release.yml@refs/tags"

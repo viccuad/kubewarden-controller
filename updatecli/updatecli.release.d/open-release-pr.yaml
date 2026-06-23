@@ -1,4 +1,4 @@
-name: Update admission-controller chart versions
+name: Update admission-controller chart version
 pipelineid: "{{ .pipelineid }}"
 
 # This updatecli pipeline receives as input a RELEASE_VERSION env var with the
@@ -29,28 +29,12 @@ sources:
         kind: latest
 
   controllerChartVersion:
-    name: "Get latest kubewarden-controller helm version"
+    name: "Get latest admission-controller helm version"
     kind: yaml
     transformers:
       - semverinc: minor
     spec:
       file: charts/admission-controller/Chart.yaml
-      key: $.version
-  crdsChartVersion:
-    name: "Get latest kubewarden-crds helm version"
-    kind: yaml
-    transformers:
-      - semverinc: minor
-    spec:
-      file: charts/kubewarden-crds/Chart.yaml
-      key: $.version
-  defaultsChartVersion:
-    name: "Get latest kubewarden-defaults helm version"
-    kind: yaml
-    transformers:
-      - semverinc: minor
-    spec:
-      file: charts/kubewarden-defaults/Chart.yaml
       key: $.version
   readmeFile:
     kind: file
@@ -58,33 +42,19 @@ sources:
       file: "./README.md"
 
 conditions:
-  kubewardenCrdsChartPosition:
+  admissionControllerChartPosition:
     kind: yaml
     disablesourceinput: true
     spec:
       file: "./charts/hauler_manifest.yaml"
       key: "$.spec.charts[0].name"
-      value: "kubewarden-crds"
-  kubewardenControllerChartPosition:
-    kind: yaml
-    disablesourceinput: true
-    spec:
-      file: "./charts/hauler_manifest.yaml"
-      key: "$.spec.charts[1].name"
       value: "admission-controller"
-  kubewardenDefaultsChartPosition:
-    kind: yaml
-    disablesourceinput: true
-    spec:
-      file: "./charts/hauler_manifest.yaml"
-      key: "$.spec.charts[2].name"
-      value: "kubewarden-defaults"
 
 targets:
-  hauler_manifest_update_kubewarden_crds_chart:
-    name: "Update kubewarden-crds Helm chart version in Hauler manifest"
+  hauler_manifest_update_admission_controller_chart:
+    name: "Update admission-controller Helm chart version in Hauler manifest"
     kind: yaml
-    sourceid: crdsChartVersion
+    sourceid: controllerChartVersion
     scmid: "default"
     spec:
       file: "charts/hauler_manifest.yaml"
@@ -92,97 +62,25 @@ targets:
       # have the condition to ensure the script is not updating the wrong helm
       # chart
       key: "$.spec.charts[0].version"
-  hauler_manifest_update_kubewarden_controller_chart:
-    name: "Update kubewarden-controller Helm chart version in Hauler manifest"
-    kind: yaml
-    sourceid: controllerChartVersion
-    scmid: "default"
-    spec:
-      file: "charts/hauler_manifest.yaml"
-      # Yamlpath to filter the helm chart by name did not work. That's why we
-      # have the condition to ensure the script is not updating the wrong helm
-      # chart
-      key: "$.spec.charts[1].version"
-  hauler_manifest_update_kubewarden_defaults_chart:
-    name: "Update kubewarden-defaults Helm chart version in Hauler manifest"
-    kind: yaml
-    sourceid: "defaultsChartVersion"
-    scmid: "default"
-    spec:
-      file: "charts/hauler_manifest.yaml"
-      # Yamlpath to filter the helm chart by name did not work. That's why we
-      # have the condition to ensure the script is not updating the wrong helm
-      # chart
-      key: "$.spec.charts[2].version"
-  update_kubewarden_crds_helm_version:
+  update_admission_controller_helm_version:
     scmid: default
-    name: Update Helm chart kubewarden-crds version
-    kind: yaml
-    sourceid: crdsChartVersion
-    spec:
-      file: charts/kubewarden-crds/Chart.yaml
-      key: $.version
-  update_kubewarden_crds_helm_appversion:
-    scmid: default
-    name: Update Helm chart kubewarden-crds appVersion
-    kind: yaml
-    sourceid: desiredReleaseVersion
-    spec:
-      file: charts/kubewarden-crds/Chart.yaml
-      key: $.appVersion
-  update_kubewarden_controller_helm_version:
-    scmid: default
-    name: Update Helm chart kubewarden-controller version
+    name: Update Helm chart admission-controller version
     kind: yaml
     sourceid: controllerChartVersion
     spec:
       file: charts/admission-controller/Chart.yaml
       key: $.version
-  update_kubewarden_controller_helm_appversion:
+  update_admission_controller_helm_appversion:
     scmid: default
-    name: Update Helm chart kubewarden-controller appVersion
+    name: Update Helm chart admission-controller appVersion
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
       file: charts/admission-controller/Chart.yaml
       key: $.appVersion
-  update_kubewarden_controller_auto_install_annotation:
-    name: "Update kubewarden-controller auto-install annotation"
-    kind: yaml
-    sourceid: crdsChartVersion
-    scmid: "default"
-    spec:
-      file: "file://charts/admission-controller/Chart.yaml"
-      key: 'annotations.catalog\.cattle\.io/auto-install'
-      value: 'kubewarden-crds={{ source "crdsChartVersion" }}'
-  update_kubewarden_defaults_helm_version:
-    scmid: default
-    name: Update Helm chart kubewarden-defaults version
-    kind: yaml
-    sourceid: defaultsChartVersion
-    spec:
-      file: charts/kubewarden-defaults/Chart.yaml
-      key: $.version
-  update_kubewarden_defaults_helm_appversion:
-    scmid: default
-    name: Update Helm chart kubewarden-defaults appVersion
-    kind: yaml
-    sourceid: desiredReleaseVersion
-    spec:
-      file: charts/kubewarden-defaults/Chart.yaml
-      key: $.appVersion
-  update_kubewarden_defaults_auto_install_annotation:
-    name: "Update kubewarden-defaults auto-install annotation"
-    kind: yaml
-    sourceid: crdsChartVersion
-    scmid: "default"
-    spec:
-      file: "file://charts/kubewarden-defaults/Chart.yaml"
-      key: 'annotations.catalog\.cattle\.io/auto-install'
-      value: 'kubewarden-crds={{ source "crdsChartVersion" }}'
   update_controller_image_tag:
     scmid: default
-    name: Update Helm chart kubewarden-controller image tag
+    name: Update Helm chart admission-controller image tag
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
@@ -202,11 +100,11 @@ targets:
     kind: yaml
     sourceid: desiredReleaseVersion
     spec:
-      file: charts/kubewarden-defaults/values.yaml
+      file: charts/admission-controller/values.yaml
       key: $.policyServer.image.tag
   update_readme:
     scmid: default
-    name: Update Helm chart kubewarden-controller README
+    name: Update Helm chart admission-controller README
     kind: file
     sourceid: readmeFile
     spec:
