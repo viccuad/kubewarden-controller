@@ -53,7 +53,7 @@ on:
     branches:
       - "main"
     paths:
-      - "charts/kubewarden-*/**"
+      - "charts/admission-controller/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
