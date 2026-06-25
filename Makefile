@@ -180,18 +180,6 @@ generate-chart: ## Generate Helm chart values schema.
 check-generate: generate
 	@./hack/check-for-auto-generated-changes.sh
 
-.PHONY: charts-generate-images-file
-charts-generate-images-file:
-	@./scripts/charts-extract-images.sh ./charts/admission-controller
-
-.PHONY: charts-generate-policies-file
-charts-generate-policies-file:
-	@./scripts/charts-extract-policies.sh ./charts/admission-controller
-
-.PHONY: charts-generate-changelog-files
-charts-generate-changelog-files:
-	@./scripts/charts-generate-changelog-files.sh ./charts imagelist.txt
-
 ##@ Dependencies
 
 ## Location to install dependencies to
