@@ -57,7 +57,6 @@
 #       [--namespace NS]
 #       [--kube-context CTX]
 #       [--repo-name NAME]
-#       [--repo-url URL]
 #       [--timeout DURATION]
 #       [--set KEY=VALUE]
 #       [--values FILE]
@@ -65,6 +64,10 @@
 #       [--dry-run]
 #       [--verbose]
 #       [--help]
+#
+# When --unified-chart is in the form <alias>/<chart>, <alias> must match
+# --repo-name and the alias must already be configured in your local Helm
+# repo list (run: helm repo add <name> <url> && helm repo update).
 #
 # Examples:
 #   # Migrate using a local chart tarball:
@@ -88,7 +91,6 @@ KW_NAMESPACE="${KW_NAMESPACE:-kubewarden}"
 KUBE_CONTEXT=""
 UNIFIED_CHART=""
 HELM_REPO_NAME="${HELM_REPO_NAME:-kubewarden}"
-HELM_REPO_URL="${HELM_REPO_URL:-https://charts.kubewarden.io}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-5m}"
 INTERACTIVE=1
 DRY_RUN=0
@@ -156,10 +158,7 @@ while (( $# > 0 )); do
       require_flag_value "$1" "${2:-}"; HELM_REPO_NAME="$2"; shift 2 ;;
     --repo-name=*)
       HELM_REPO_NAME="${1#--repo-name=}"; shift ;;
-    --repo-url)
-      require_flag_value "$1" "${2:-}"; HELM_REPO_URL="$2"; shift 2 ;;
-    --repo-url=*)
-      HELM_REPO_URL="${1#--repo-url=}"; shift ;;
+
     --timeout)
       require_flag_value "$1" "${2:-}"; WAIT_TIMEOUT="$2"; shift 2 ;;
     --timeout=*)
@@ -251,6 +250,22 @@ helm_major_version() {
   helm version --short 2>/dev/null | sed -E 's/^v?([0-9]+)\..*/\1/' | head -n1
 }
 
+# classify_unified_chart CHART
+# Prints one of: local | oci | repo
+# local — an existing file or a directory that contains Chart.yaml
+# oci   — starts with oci://
+# repo  — <alias>/<chart> (remaining form)
+classify_unified_chart() {
+  local chart="$1"
+  if [[ "$chart" == oci://* ]]; then
+    echo "oci"
+  elif [[ -f "$chart" ]] || [[ -d "$chart" && -f "$chart/Chart.yaml" ]]; then
+    echo "local"
+  else
+    echo "repo"
+  fi
+}
+
 cleanup_on_exit() {
   # Uninstall plugin on exit, but leave the plugin directory for inspection.
   hctl plugin uninstall kw-keep-postrenderer 2>/dev/null || true
@@ -306,11 +321,35 @@ phase_preflight() {
     || fail "cannot connect to Kubernetes cluster"
   ok "cluster is reachable"
 
-  # Ensure the Helm repo is configured and up to date.
-  info "configuring Helm repo $HELM_REPO_NAME ($HELM_REPO_URL)"
-  hctl repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
-  hctl repo update "$HELM_REPO_NAME" >/dev/null
-  ok "Helm repo $HELM_REPO_NAME is up to date"
+  # Classify the unified chart source and validate repo alias consistency.
+  local chart_kind
+  chart_kind="$(classify_unified_chart "$UNIFIED_CHART")"
+  info "unified chart source type: $chart_kind ($UNIFIED_CHART)"
+
+  if [[ "$chart_kind" == "repo" ]]; then
+    local chart_alias="${UNIFIED_CHART%%/*}"
+    if [[ "$chart_alias" != "$HELM_REPO_NAME" ]]; then
+      fail "unified chart alias '$chart_alias' does not match --repo-name '$HELM_REPO_NAME'." \
+           $'\nAlign them (e.g. --repo-name '"$chart_alias"') or pass a local tarball to --unified-chart.'
+    fi
+
+    # Verify the alias exists in the user's local Helm config; never mutate it.
+    info "verifying Helm repo alias '$HELM_REPO_NAME' is configured locally"
+    local repo_url_local
+    repo_url_local="$(helm repo list -o json 2>/dev/null \
+      | jq -r --arg name "$HELM_REPO_NAME" '.[] | select(.name==$name) | .url' 2>/dev/null || true)"
+    if [[ -z "$repo_url_local" ]]; then
+      fail "Helm repo alias '$HELM_REPO_NAME' is not configured locally." \
+           $'\nRun: helm repo add '"$HELM_REPO_NAME"' <url> && helm repo update\nThen re-run the migration script.'
+    fi
+    info "repo alias '$HELM_REPO_NAME' points to: $repo_url_local"
+
+    if ! hctl repo update "$HELM_REPO_NAME" >/dev/null 2>&1; then
+      warn "could not refresh Helm repo index for '$HELM_REPO_NAME' (offline?); proceeding with cached index"
+    else
+      ok "Helm repo '$HELM_REPO_NAME' index refreshed"
+    fi
+  fi
 
   # Detect legacy releases.
   info "detecting legacy Kubewarden releases in namespace $KW_NAMESPACE"
@@ -360,12 +399,18 @@ phase_preflight() {
   fi
   info "merged values file will carry nameOverride=$LEGACY_NAME_OVERRIDE (preserves legacy resource identity)"
 
-  # Validate unified chart source.
-  if [[ -f "$UNIFIED_CHART" ]]; then
-    info "unified chart source: local tarball ($UNIFIED_CHART)"
-  else
-    info "unified chart source: repo chart ($UNIFIED_CHART)"
+  # Resolve the unified chart now — before any destructive step — so a bad
+  # reference is caught while the legacy releases are still intact.
+  info "resolving unified chart '$UNIFIED_CHART'"
+  local chart_meta
+  if ! chart_meta="$(hctl show chart "$UNIFIED_CHART" 2>/dev/null)"; then
+    fail "unified chart '$UNIFIED_CHART' could not be resolved." \
+         $'\nFor repo charts: ensure the alias is correct and the repo index is current.\nFor local charts: check the path exists.'
   fi
+  local resolved_name resolved_version
+  resolved_name="$(printf '%s\n' "$chart_meta" | yq '.name' 2>/dev/null || true)"
+  resolved_version="$(printf '%s\n' "$chart_meta" | yq '.version' 2>/dev/null || true)"
+  ok "unified chart resolved: $resolved_name $resolved_version"
 
   # Verify CRDs exist.
   for crd in "${KW_CRDS[@]}"; do
