@@ -581,8 +581,10 @@ phase_uninstall_legacy() {
   done
 
   info "checking legacy controller plumbing was removed (expected)"
-  if kctl -n "$KW_NAMESPACE" get deployment "$LEGACY_CONTROLLER_RELEASE_NAME" >/dev/null 2>&1; then
-    warn "legacy controller Deployment '$LEGACY_CONTROLLER_RELEASE_NAME' still present (expected to be deleted; will be reconciled by the unified install)"
+  if kctl -n "$KW_NAMESPACE" get deployment \
+      -l "app.kubernetes.io/instance=$LEGACY_CONTROLLER_RELEASE_NAME,app.kubernetes.io/component=controller" \
+      --no-headers 2>/dev/null | grep -q .; then
+    warn "legacy controller Deployment still present (expected to be deleted; will be reconciled by the unified install)"
   else
     ok "legacy controller Deployment removed (will be recreated by the unified install)"
   fi
