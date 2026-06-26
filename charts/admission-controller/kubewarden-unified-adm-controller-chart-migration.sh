@@ -61,7 +61,7 @@
 #       [--timeout DURATION]
 #       [--set KEY=VALUE]
 #       [--values FILE]
-#       [--interactive]
+#       [--no-interactive]
 #       [--dry-run]
 #       [--verbose]
 #       [--help]
@@ -90,7 +90,7 @@ UNIFIED_CHART=""
 HELM_REPO_NAME="${HELM_REPO_NAME:-kubewarden}"
 HELM_REPO_URL="${HELM_REPO_URL:-https://charts.kubewarden.io}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-5m}"
-INTERACTIVE=0
+INTERACTIVE=1
 DRY_RUN=0
 VERBOSE=0
 
@@ -164,8 +164,8 @@ while (( $# > 0 )); do
       require_flag_value "$1" "${2:-}"; WAIT_TIMEOUT="$2"; shift 2 ;;
     --timeout=*)
       WAIT_TIMEOUT="${1#--timeout=}"; shift ;;
-    --interactive)
-      INTERACTIVE=1; shift ;;
+    --no-interactive)
+      INTERACTIVE=0; shift ;;
     --dry-run)
       DRY_RUN=1; shift ;;
     --verbose)
