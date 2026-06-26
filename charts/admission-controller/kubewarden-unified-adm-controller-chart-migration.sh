@@ -314,7 +314,7 @@ phase_preflight() {
 
   # Detect legacy releases.
   info "detecting legacy Kubewarden releases in namespace $KW_NAMESPACE"
-  local entry release chart version latest_version
+  local entry release chart app_version
   for entry in "${LEGACY_RELEASES[@]}"; do
     release="${entry%%=*}"
     chart="${entry##*=}"
@@ -323,18 +323,14 @@ phase_preflight() {
       fail "legacy release '$release' not found in namespace '$KW_NAMESPACE'"
     fi
 
-    version="$(hctl get metadata "$release" -n "$KW_NAMESPACE" -o json | jq -r '.version')"
-    [[ -n "$version" && "$version" != "null" ]] \
-      || fail "could not determine installed chart version for $release"
+    app_version="$(hctl get metadata "$release" -n "$KW_NAMESPACE" -o json | jq -r '.appVersion')"
+    [[ -n "$app_version" && "$app_version" != "null" ]] \
+      || fail "could not determine installed appVersion for $release"
 
-    latest_version="$(hctl search repo "$HELM_REPO_NAME/$chart" -o json | jq -r '.[0].version' 2>/dev/null || true)"
-
-    if [[ -n "$latest_version" && "$latest_version" != "null" && "$version" != "$latest_version" ]]; then
-      warn "$release is at chart version $version but latest in repo is $latest_version"
-      warn "it is recommended to upgrade to the latest version before migrating"
-    else
-      ok "$release is at chart version $version (latest)"
-    fi
+    # Migration requires legacy charts to be at appVersion v1.36.0 before proceeding.
+    [[ "$app_version" == "v1.36.0" ]] \
+      || fail "$release has appVersion $app_version; this migration requires appVersion v1.36.0"
+    ok "$release appVersion is $app_version (v1.36.0 — OK)"
 
     # Remember the kubewarden-controller release name for unified chart install.
     if [[ "$chart" == "kubewarden-controller" ]]; then
@@ -673,11 +669,27 @@ phase_install_unified() {
   # User-passed --set/--values (HELM_INSTALL_EXTRA_ARGS) come last so they
   # override the merged values. These values are stored in the release, so future
   # `helm upgrade --reuse-values` keeps them.
-  if dry_run_guard "helm install $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --take-ownership --values $MERGED_VALUES_FILE ${HELM_INSTALL_EXTRA_ARGS[*]:-}"; then
+  # When the chart source is a repo reference (not a local file or directory),
+  # resolve the chart version whose appVersion is v1.37.0 and pin the install
+  # to that exact chart version.
+  local helm_version_flag=()
+  if [[ ! -f "$UNIFIED_CHART" && ! -d "$UNIFIED_CHART" ]]; then
+    info "repo chart detected: resolving chart version for appVersion v1.37.0"
+    local chart_version_for_app
+    chart_version_for_app="$(hctl search repo "$UNIFIED_CHART" --versions -o json \
+      | jq -r '[.[] | select(.app_version == "v1.37.0")] | first | .version // empty' 2>/dev/null || true)"
+    [[ -n "$chart_version_for_app" ]] \
+      || fail "could not find a chart in '$UNIFIED_CHART' with appVersion v1.37.0; ensure the repo is up to date"
+    helm_version_flag=(--version "$chart_version_for_app")
+    info "resolved chart version $chart_version_for_app for appVersion v1.37.0"
+  fi
+
+  if dry_run_guard "helm install $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --take-ownership --values $MERGED_VALUES_FILE ${helm_version_flag[*]:-} ${HELM_INSTALL_EXTRA_ARGS[*]:-}"; then
     hctl install "$release_name" "$UNIFIED_CHART" \
       --namespace "$KW_NAMESPACE" \
       --take-ownership \
       --values "$MERGED_VALUES_FILE" \
+      "${helm_version_flag[@]}" \
       "${HELM_INSTALL_EXTRA_ARGS[@]}" \
       --wait --timeout "$WAIT_TIMEOUT"
     ok "unified chart installed"
