@@ -118,8 +118,8 @@ is the policy servers and policies, and reinstall them once the stack is back up
 That path causes downtime in policy evaluation.
 
 > [!WARNING]
-> The Kubewarden team test the migration path as much as possible. But it is
-> still recommended to backup policies and policy server definitions just in
+> The Kubewarden team tests the migration path as much as possible. But it is
+> still recommended to back up policies and policy server definitions just in
 > case something unexpected happens. Therefore, it will be easier to restore to
 > the previous state if necessary.
 
