@@ -681,8 +681,8 @@ phase_install_unified() {
   # overrides — the release is vanilla.
   #
   # Adoption model:
-  #  - Constant-named data/identity resources (the 5 CRDs, the cert Secrets, the
-  #    policy-server SA, the kubewarden-context-watcher RBAC, the default
+  #  - Constant-named data/identity resources (the 5 CRDs, the kubewarden-ca Secret,
+  #    the policy-server SA, the kubewarden-context-watcher RBAC, the default
   #    PolicyServer and recommended policies) were kept through the legacy
   #    uninstall and are adopted into this release via Helm 4 Server-Side Apply
   #    (--take-ownership). Their names are literal/constant, so they render
