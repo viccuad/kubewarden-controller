@@ -517,7 +517,7 @@ EOF
 phase_uninstall_legacy() {
   step "Phase 4: Uninstall legacy releases (--no-hooks)"
 
-  confirm "About to uninstall the three legacy Helm releases with --no-hooks. CRDs, CA cert Secret, RBAC, PolicyServers, and policies are kept. The controller goes down for a short time. Existing policy enforcement keeps running, but attempts to create new policies or PolicyServers will fail until the unified chart is installed."
+  confirm "About to uninstall the three legacy Helm releases with --no-hooks. CRDs, CA cert Secret, RBAC, PolicyServers, and policies are kept. The controller goes down for a short time. Existing policy enforcement keeps running, but new/updated PolicyServers and policies will not be reconciled until the unified chart is installed."
 
   # Reverse order: defaults, controller, crds.
   local releases_reversed=("kubewarden-defaults" "kubewarden-controller" "kubewarden-crds")
