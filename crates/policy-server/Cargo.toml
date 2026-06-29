@@ -52,12 +52,12 @@ sha2 = { workspace = true }
 sigstore_protobuf_specs = "0.5"
 thiserror = { workspace = true }
 tikv-jemalloc-ctl = "0.6"
-tikv-jemallocator = { version = "0.6", features = [
+tikv-jemallocator = { version = "0.7", features = [
   "profiling",
   "unprefixed_malloc_on_supported_platforms",
 ] }
 tokio = { workspace = true }
-tower-http = { version = "0.6.8", features = ["trace"] }
+tower-http = { version = "0.7.0", features = ["trace"] }
 tracing = { workspace = true }
 tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3", features = ["ansi", "fmt", "json"] }
@@ -69,7 +69,7 @@ tokio-stream = "0.1.18"
 [dev-dependencies]
 backon         = { version = "1.6", features = ["tokio-sleep"] }
 http-body-util = "0.1.3"
-mockall        = "0.14"
+mockall        = "0.15"
 rcgen          = { version = "0.14", features = ["crypto"] }
 rstest         = { workspace = true }
 serial_test    = "3"
