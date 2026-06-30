@@ -28,22 +28,26 @@
 #
 #   4. Install unified chart
 #      Runs `helm install --take-ownership` with the unified admission-controller
-#      chart. Two things make in-place adoption work despite the chart rename:
-#      the release name must match the legacy kubewarden-controller release
-#      name (preserves the app.kubernetes.io/instance selector label), and the
-#      install passes a merged values file (the concatenation of the three
-#      legacy releases' `helm get values`) that carries a reconciled
-#      nameOverride (preserves the app.kubernetes.io/name selector label). The
-#      legacy name is read from the legacy release's Helm values in preflight.
-#      Helm 4 uses Server-Side Apply
-#      to adopt existing resources and strip the legacy keep annotations from
-#      chart-rendered resources.
+#      chart under a fresh release name (admission-controller). No nameOverride
+#      is needed: the controller's stateless plumbing (Deployment, Services,
+#      ConfigMap, RBAC, webhook configs) is recreated with the chart's natural
+#      names, while only the constant-named data/identity resources (CRDs, cert
+#      Secrets, policy-server SA, context-watcher RBAC, default PolicyServer and
+#      recommended policies) are adopted in place via Helm 4 Server-Side Apply.
+#      Only the kubewarden-ca Secret is kept and reused by the chart's `lookup`
+#      (no CA churn); the leaf certs are regenerated from it with SANs matching
+#      the recreated webhook Service name. The merged values file (the
+#      concatenation of the three legacy
+#      releases' `helm get values`, with name/fullname overrides stripped)
+#      preserves the user's prior configuration. The migrated release is vanilla
+#      — it stores no overrides, so future upgrades need no special values.
 #
 #   5. Post-migration verification
 #      Confirms CRDs are owned by the new release, the controller
-#      Deployment is running, RBAC was adopted in place (UIDs unchanged),
-#      and the DefaultsApplier has labeled the default PolicyServer and
-#      recommended policies.
+#      Deployment is running (located via its hardened label selector), RBAC and
+#      cert Secrets were adopted in place (UIDs unchanged), and the
+#      DefaultsApplier has labeled the default PolicyServer and recommended
+#      policies.
 #
 # Requirements:
 #   - helm v4+ (Server-Side Apply and post-renderer plugin support)
@@ -120,11 +124,10 @@ LEGACY_CONTROLLER_RELEASE_NAME=""
 RECOMMENDED_POLICIES=()
 # Values file built by concatenating the three legacy releases' user values.
 MERGED_VALUES_FILE="${MERGED_VALUES_FILE:-./kw-merged-values.yaml}"
-# nameOverride to pass to the unified chart so it renders the SAME resource
-# names/labels as the legacy chart (required for in-place adoption — see
-# phase_install_unified). Defaults to the well-known legacy chart name and is
-# refined in phase_snapshot by reading the live controller Deployment.
-LEGACY_NAME_OVERRIDE="kubewarden-controller"
+# The unified chart is installed under this fresh release name. The controller
+# plumbing is recreated with the chart's natural names, so NO nameOverride is
+# needed and future upgrades are vanilla.
+UNIFIED_RELEASE_NAME="${UNIFIED_RELEASE_NAME:-admission-controller}"
 
 #------------------------------------------------------------------------------
 # CLI parsing
@@ -344,25 +347,7 @@ phase_preflight() {
 
   [[ -n "$LEGACY_CONTROLLER_RELEASE_NAME" ]] \
     || fail "could not determine the legacy kubewarden-controller release name"
-  info "unified chart will be installed with release name: $LEGACY_CONTROLLER_RELEASE_NAME"
-
-  # Determine the nameOverride to pass to the unified chart so it renders the
-  # SAME resource names/labels as the legacy chart (required for in-place
-  # adoption — see phase_install_unified). The effective name the legacy chart
-  # used is `default .Chart.Name .Values.nameOverride`, so we read the
-  # user-supplied nameOverride from the legacy controller release's stored Helm
-  # values and fall back to the legacy chart's name (kubewarden-controller) when
-  # it was never overridden. (hctl is the helm wrapper defined above.)
-  local legacy_name_override
-  legacy_name_override="$(hctl get values "$LEGACY_CONTROLLER_RELEASE_NAME" -n "$KW_NAMESPACE" -o json 2>/dev/null \
-                          | jq -r '.nameOverride // empty' 2>/dev/null || true)"
-  if [[ -n "$legacy_name_override" ]]; then
-    LEGACY_NAME_OVERRIDE="$legacy_name_override"
-    info "legacy release set a custom nameOverride: '$LEGACY_NAME_OVERRIDE'"
-  else
-    info "legacy release used the default chart name: nameOverride='$LEGACY_NAME_OVERRIDE'"
-  fi
-  info "merged values file will carry nameOverride=$LEGACY_NAME_OVERRIDE (preserves legacy resource identity)"
+  info "unified chart will be installed with release name: $UNIFIED_RELEASE_NAME"
 
   # Validate unified chart source.
   if [[ -f "$UNIFIED_CHART" ]]; then
@@ -451,6 +436,29 @@ EOF
     [[ -n "$version" && "$version" != "null" ]] \
       || fail "could not determine installed chart version for $release"
 
+    # Per-release keep policy:
+    #  - crds / defaults: keep ALL rendered docs (data + identity).
+    #  - controller: keep ONLY the kubewarden-ca Secret (the root of trust).
+    #    The unified chart's webhooks.yaml lookup reuses it, so the running
+    #    policy-server pods and the policy webhook caBundles stay valid (no CA
+    #    churn). The leaf certs (kubewarden-webhook-server-cert,
+    #    kubewarden-audit-scanner-client-cert) are intentionally NOT kept: the
+    #    webhook server cert's SAN is bound to the webhook Service DNS name,
+    #    which changes when the controller plumbing is recreated under the
+    #    chart's natural names. Keeping the stale leaf cert would make the
+    #    controller serve a cert valid for the OLD service name and every kb.io
+    #    webhook call would fail TLS verification. Deleting them lets the unified
+    #    install regenerate them from the preserved CA with the correct SAN. The
+    #    Deployment, Services, ConfigMap, SA, RBAC and webhook configs are also
+    #    NOT kept, so `helm uninstall` deletes them and the unified install
+    #    recreates them with the chart's natural names.
+    local keep_expr
+    if [[ "$chart" == "kubewarden-controller" ]]; then
+      keep_expr='select(. != null) | (select(.kind == "Secret" and .metadata.name == "kubewarden-ca") | .metadata.annotations."helm.sh/resource-policy") = "keep"'
+    else
+      keep_expr='select(. != null) | .metadata.annotations."helm.sh/resource-policy" = "keep"'
+    fi
+
     info "$release: upgrading with post-renderer (chart version $version, --reuse-values)"
 
     if dry_run_guard "helm upgrade $release $HELM_REPO_NAME/$chart --version $version --reuse-values --post-renderer kw-keep-postrenderer"; then
@@ -460,7 +468,7 @@ EOF
         --reuse-values \
         --post-renderer kw-keep-postrenderer \
         --post-renderer-args "eval" \
-        --post-renderer-args 'select(. != null) | .metadata.annotations."helm.sh/resource-policy" = "keep"' \
+        --post-renderer-args "$keep_expr" \
         --post-renderer-args "-" \
         --wait --timeout "$WAIT_TIMEOUT"
       ok "$release: keep annotation baked into stored manifest"
@@ -478,9 +486,11 @@ EOF
       ok "$crd has keep annotation"
     done
 
+    # Only kubewarden-ca is kept from the controller release; the leaf certs are
+    # intentionally left unkept so the unified install regenerates them.
     v="$(kctl -n "$KW_NAMESPACE" get secret kubewarden-ca -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
     [[ "$v" == "keep" ]] \
-      || fail "Secret/kubewarden-ca is missing keep annotation"
+      || fail "Secret/kubewarden-ca is missing keep annotation after upgrade"
     ok "Secret/kubewarden-ca has keep annotation"
 
     v="$(kctl get policyserver default -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
@@ -507,7 +517,7 @@ EOF
 phase_uninstall_legacy() {
   step "Phase 4: Uninstall legacy releases (--no-hooks)"
 
-  confirm "About to uninstall the three legacy Helm releases with --no-hooks. Resources will be preserved by keep annotations."
+  confirm "About to uninstall the three legacy Helm releases with --no-hooks. CRDs, CA cert Secret, RBAC, PolicyServers, and policies are kept. The controller goes down for a short time. Existing policy enforcement keeps running, but new/updated PolicyServers and policies will not be reconciled until the unified chart is installed."
 
   # Reverse order: defaults, controller, crds.
   local releases_reversed=("kubewarden-defaults" "kubewarden-controller" "kubewarden-crds")
@@ -531,7 +541,7 @@ phase_uninstall_legacy() {
     ok "$crd survived"
   done
 
-  info "checking kubewarden-ca Secret"
+  info "checking kubewarden-ca Secret (root of trust; leaf certs are regenerated by the unified install)"
   kctl -n "$KW_NAMESPACE" get secret kubewarden-ca >/dev/null 2>&1 \
     || fail "Secret/kubewarden-ca was deleted during uninstall"
   ok "Secret/kubewarden-ca survived"
@@ -569,6 +579,15 @@ phase_uninstall_legacy() {
       warn "ClusterAdmissionPolicy/$p not found after uninstall"
     fi
   done
+
+  info "checking legacy controller plumbing was removed (expected)"
+  if kctl -n "$KW_NAMESPACE" get deployment \
+      -l "app.kubernetes.io/instance=$LEGACY_CONTROLLER_RELEASE_NAME,app.kubernetes.io/component=controller" \
+      --no-headers 2>/dev/null | grep -q .; then
+    warn "legacy controller Deployment still present (expected to be deleted; will be reconciled by the unified install)"
+  else
+    ok "legacy controller Deployment removed (will be recreated by the unified install)"
+  fi
 }
 
 #------------------------------------------------------------------------------
@@ -605,26 +624,31 @@ phase_build_merged_values() {
       info "$release: no user-supplied values"
       continue
     fi
-    # Strip any top-level nameOverride; it is reconciled to a single
-    # authoritative value below (avoids duplicate keys when a legacy release
-    # stored nameOverride: "").
-    vals="$(printf '%s\n' "$vals" | grep -v '^nameOverride:' || true)"
+    # Drop name/fullname overrides entirely: the unified chart recreates the
+    # controller plumbing with its own natural names, so no override is needed.
+    # (Also resolves the case where a legacy release set fullnameOverride.)
+    vals="$(printf '%s\n' "$vals" | yq 'del(.nameOverride) | del(.fullnameOverride)')"
+
+    # If the override(s) were the ONLY user-supplied values, stripping them
+    # leaves an empty map, which yq renders as "{}". Appending that to the
+    # merged file produces invalid YAML (a flow mapping followed by block keys),
+    # and Helm then silently reads only the "{}" document and DROPS every later
+    # release's values — e.g. a kubewarden-defaults `recommendedPolicies.enabled=true`
+    # would be lost, leaving recommended policies unmanaged after the migration.
+    # Skip releases that have nothing left after stripping.
+    local trimmed
+    trimmed="$(printf '%s' "$vals" | tr -d '[:space:]')"
+    if [[ -z "$trimmed" || "$trimmed" == "{}" || "$trimmed" == "null" ]]; then
+      info "$release: no user-supplied values after stripping name/fullname overrides"
+      continue
+    fi
+
     info "$release: appending user-supplied values"
     {
       printf '# values from legacy release: %s\n' "$release"
       printf '%s\n' "$vals"
     } >> "$MERGED_VALUES_FILE"
   done
-
-  # Reconcile nameOverride. The unified chart is named "admission-controller",
-  # so an empty/absent nameOverride renders app.kubernetes.io/name=admission-controller
-  # and breaks in-place adoption of the live kubewarden-controller resources.
-  # LEGACY_NAME_OVERRIDE already holds the legacy effective name (custom or the
-  # kubewarden-controller default), so we always write exactly one nameOverride.
-  {
-    printf '# nameOverride reconciled by migration (legacy effective name)\n'
-    printf 'nameOverride: %s\n' "$LEGACY_NAME_OVERRIDE"
-  } >> "$MERGED_VALUES_FILE"
 
   ok "merged values written to $MERGED_VALUES_FILE"
   # The merged values come from `helm get values` and may carry sensitive
@@ -644,31 +668,37 @@ phase_build_merged_values() {
 phase_install_unified() {
   step "Phase 5: Install unified chart with --take-ownership"
 
-  local release_name="$LEGACY_CONTROLLER_RELEASE_NAME"
-  info "release name: $release_name (matches legacy kubewarden-controller release)"
+  local release_name="$UNIFIED_RELEASE_NAME"
+  info "release name: $release_name (fresh unified release; adopts kept resources via --take-ownership)"
   info "chart source: $UNIFIED_CHART"
   info "namespace: $KW_NAMESPACE"
 
-  confirm "About to run 'helm install $release_name --take-ownership' to adopt existing resources."
+  confirm "About to run 'helm install $release_name --take-ownership' to adopt the kept resources and recreate the controller plumbing with the chart's natural names."
 
   # Install from the merged legacy values (see phase_build_merged_values) instead
   # of hardcoded --set flags, so the migrated release keeps the configuration the
-  # user actually had on the legacy stack. The merged file also carries the
-  # reconciled nameOverride, which preserves the legacy app.kubernetes.io/name so
-  # Helm 4 Server-Side Apply adopts the existing objects in place rather than
-  # failing on the immutable Deployment selector (reusing the legacy release name
-  # preserves app.kubernetes.io/instance).
+  # user actually had on the legacy stack. The merged file carries NO name/fullname
+  # overrides — the release is vanilla.
   #
-  # The unified chart is now named "admission-controller", so by default it renders
-  # resources with the new identity (app.kubernetes.io/name=admission-controller,
-  # Deployment <release>-admission-controller, etc.). The live legacy resources we are
-  # adopting were created by the old "kubewarden-controller" chart and carry the
-  # legacy app.kubernetes.io/name in their immutable Deployment selectors. The merged
-  # values file carries the reconciled nameOverride (see phase_build_merged_values),
-  # which makes the unified chart render the OLD app.kubernetes.io/name; reusing the
-  # legacy release name (above) preserves the OLD app.kubernetes.io/instance. With
-  # both immutable selector labels matched, Helm 4 Server-Side Apply adopts the
-  # existing objects in place instead of failing on the immutable selector.
+  # Adoption model:
+  #  - Constant-named data/identity resources (the 5 CRDs, the kubewarden-ca Secret,
+  #    the policy-server SA, the kubewarden-context-watcher RBAC, the default
+  #    PolicyServer and recommended policies) were kept through the legacy
+  #    uninstall and are adopted into this release via Helm 4 Server-Side Apply
+  #    (--take-ownership). Their names are literal/constant, so they render
+  #    identically under the unified chart regardless of release name.
+  #  - The controller's stateless plumbing (Deployment, Services, ConfigMap, SA,
+  #    RBAC, webhook configs) is created FRESH under the chart's natural names.
+  #    The legacy copies were deleted in phase 4, so there is nothing to adopt and
+  #    no immutable-selector conflict — the hardened controller selector
+  #    (component+instance, independent of the chart name) renders cleanly.
+  #  - Only the kubewarden-ca Secret was kept, so the chart's webhooks.yaml
+  #    `lookup` reuses the existing CA (no CA churn → running policy-server pods
+  #    and policy webhook caBundles stay valid). The leaf certs
+  #    (webhook-server-cert, audit-scanner-client-cert) were NOT kept and are
+  #    regenerated from the preserved CA with SANs that match the recreated
+  #    webhook Service name (keeping the old leaf cert would serve a SAN valid
+  #    only for the old service name and break every kb.io webhook call).
   #
   # User-passed --set/--values (HELM_INSTALL_EXTRA_ARGS) come last so they
   # override the merged values. These values are stored in the release, so future
@@ -743,19 +773,23 @@ phase_install_unified() {
     fi
   done
 
-  # Verify controller pod is running.
-  info "checking controller Deployment"
-  local controller_dep="${release_name}"
-  if kctl -n "$KW_NAMESPACE" get deployment "$controller_dep" >/dev/null 2>&1; then
+  # Verify controller pod is running. Locate the freshly-created Deployment by
+  # the hardened selector labels rather than by a computed name.
+  info "checking controller Deployment (by label selector)"
+  local sel="app.kubernetes.io/component=controller,app.kubernetes.io/instance=${release_name}"
+  local controller_dep
+  controller_dep="$(kctl -n "$KW_NAMESPACE" get deployment -l "$sel" \
+                     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [[ -n "$controller_dep" ]]; then
     local ready
     ready="$(kctl -n "$KW_NAMESPACE" get deployment "$controller_dep" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)"
     if [[ -n "$ready" && "$ready" -ge 1 ]]; then
       ok "controller Deployment '$controller_dep' is running ($ready ready replicas)"
     else
-      warn "controller Deployment '$controller_dep' has $ready ready replicas"
+      warn "controller Deployment '$controller_dep' has ${ready:-0} ready replicas"
     fi
   else
-    warn "controller Deployment '$controller_dep' not found"
+    warn "controller Deployment not found via selector '$sel'"
   fi
 
   # Verify default PolicyServer Deployment UID unchanged.
@@ -791,17 +825,15 @@ phase_uninstall_legacy
 phase_install_unified
 
 step "Migration completed successfully"
-info "The unified chart is installed as release '$LEGACY_CONTROLLER_RELEASE_NAME' in namespace '$KW_NAMESPACE'."
+info "The unified chart is installed as release '$UNIFIED_RELEASE_NAME' in namespace '$KW_NAMESPACE'."
 info "The post-renderer plugin directory is at: $POSTRENDER_PLUGIN_DIR/ (kept for inspection)"
 info "Log saved to: $LOG_FILE"
 info ""
 info "Next steps:"
-info "  - Verify your PolicyServers and policies are working as expected"
-info "  - The unified chart was installed from the merged legacy values at:"
-info "      $MERGED_VALUES_FILE"
-info "    Keep this file. It carries nameOverride=$LEGACY_NAME_OVERRIDE, which"
-info "    preserves the legacy resource names/labels (immutable Deployment"
-info "    selector). Future upgrades MUST keep these values, e.g. run"
-info "    'helm upgrade ... --reuse-values' or pass '--values $MERGED_VALUES_FILE'."
-info "    Dropping nameOverride would re-render admission-controller-named selectors"
-info "    and fail on the immutable field."
+info "  - Verify your PolicyServers and policies are working as expected."
+info "  - The release '$UNIFIED_RELEASE_NAME' is now VANILLA: it stores NO name/fullname"
+info "    overrides, so future upgrades need no special values, e.g.:"
+info "      helm upgrade $UNIFIED_RELEASE_NAME $UNIFIED_CHART -n $KW_NAMESPACE --reuse-values"
+info "  - The merged values file ($MERGED_VALUES_FILE) only carried your prior user"
+info "    config; you can discard it once 'helm get values $UNIFIED_RELEASE_NAME -n $KW_NAMESPACE'"
+info "    looks correct."
