@@ -38,8 +38,9 @@
 #      (no CA churn); the leaf certs are regenerated from it with SANs matching
 #      the recreated webhook Service name. The merged values file (the
 #      concatenation of the three legacy
-#      releases' `helm get values`, with name/fullname overrides stripped)
-#      preserves the user's prior configuration. The migrated release is vanilla
+#      releases' `helm get values`, with name/fullname overrides and the three
+#      component image tags stripped so the unified chart's appVersion images
+#      are used) preserves the user's prior configuration. The migrated release is vanilla
 #      — it stores no overrides, so future upgrades need no special values.
 #
 #   5. Post-migration verification
@@ -253,6 +254,20 @@ helm_major_version() {
   helm version --short 2>/dev/null | sed -E 's/^v?([0-9]+)\..*/\1/' | head -n1
 }
 
+# Prints overridden component image tags (path=value) found in a values blob
+# read from stdin, one per line. Only the three Kubewarden component tags matter
+# — they must match the unified chart's appVersion, so any override is dropped
+# during the merge (see phase_build_merged_values).
+detect_overridden_image_tags() {
+  yq -r '
+    [
+      {"p":"image.tag","v":.image.tag},
+      {"p":"auditScanner.image.tag","v":.auditScanner.image.tag},
+      {"p":"policyServer.image.tag","v":.policyServer.image.tag}
+    ] | .[] | select(.v != null) | .p + "=" + (.v|tostring)
+  ' 2>/dev/null || true
+}
+
 # classify_unified_chart CHART
 # Prints one of: local | oci | repo
 # local — an existing file or a directory that contains Chart.yaml
@@ -377,6 +392,19 @@ phase_preflight() {
     # Remember the kubewarden-controller release name for unified chart install.
     if [[ "$chart" == "kubewarden-controller" ]]; then
       LEGACY_CONTROLLER_RELEASE_NAME="$release"
+    fi
+
+    # Warn early (before any destructive step) if the release pins a component
+    # image tag. Such overrides are dropped during the merge so the unified
+    # chart's appVersion images are used; a stale tag would run an old image
+    # that lacks the new controller flags and crashloop, failing the install.
+    local overridden
+    overridden="$(hctl get values "$release" -n "$KW_NAMESPACE" -o yaml 2>/dev/null \
+      | detect_overridden_image_tags)"
+    if [[ -n "$overridden" ]]; then
+      warn "$release overrides component image tag(s): ${overridden//$'\n'/, }"
+      warn "  these overrides will be DROPPED; the unified chart's appVersion images will be used."
+      warn "  (a stale component tag would run an old image incompatible with the new controller flags and crashloop)"
     fi
   done
 
@@ -638,6 +666,11 @@ phase_uninstall_legacy() {
 # values (their key namespaces are effectively disjoint), so we simply append
 # each release's user-supplied values into one file — no deep merge. Runs before
 # the legacy uninstall because `helm get values` needs the releases to exist.
+#
+# name/fullname overrides and the three component image tags (image.tag,
+# auditScanner.image.tag, policyServer.image.tag) are stripped from each
+# release's values so the unified chart's appVersion images are used (a stale
+# tag would crashloop the controller — see issue #1852).
 #------------------------------------------------------------------------------
 phase_build_merged_values() {
   step "Phase: build merged values from legacy releases"
@@ -665,10 +698,21 @@ phase_build_merged_values() {
       info "$release: no user-supplied values"
       continue
     fi
-    # Drop name/fullname overrides entirely: the unified chart recreates the
-    # controller plumbing with its own natural names, so no override is needed.
-    # (Also resolves the case where a legacy release set fullnameOverride.)
-    vals="$(printf '%s\n' "$vals" | yq 'del(.nameOverride) | del(.fullnameOverride)')"
+    # Drop name/fullname overrides AND the three component image tags:
+    #  - name/fullname overrides: the unified chart recreates the controller
+    #    plumbing with its own natural names, so no override is needed. (Also
+    #    resolves the case where a legacy release set fullnameOverride.)
+    #  - component image tags: the unified chart's bundled tags must match its
+    #    appVersion. A stale tag (e.g. image.tag=v1.36.0 from a --set/-f on the
+    #    legacy stack) would pin an old image that lacks the new
+    #    --defaults-configmap-name flag and crashloop, failing `helm install
+    #    --wait`. Custom repositories (private mirrors) are preserved.
+    # Deleting an absent path is a no-op in yq, so one expression covers all
+    # three legacy releases.
+    vals="$(printf '%s\n' "$vals" | yq '
+      del(.nameOverride) | del(.fullnameOverride) |
+      del(.image.tag) | del(.auditScanner.image.tag) | del(.policyServer.image.tag)
+    ')"
 
     # If the override(s) were the ONLY user-supplied values, stripping them
     # leaves an empty map, which yq renders as "{}". Appending that to the
@@ -894,3 +938,7 @@ info "      helm upgrade $UNIFIED_RELEASE_NAME $UNIFIED_CHART -n $KW_NAMESPACE -
 info "  - The merged values file ($MERGED_VALUES_FILE) only carried your prior user"
 info "    config; you can discard it once 'helm get values $UNIFIED_RELEASE_NAME -n $KW_NAMESPACE'"
 info "    looks correct."
+info "  - Any component image tag you had pinned (controller/audit-scanner/policy-server)"
+info "    was intentionally dropped so the chart's appVersion images are used. To pin a"
+info "    specific patch tag on the new version, set it afterward, e.g.:"
+info "      helm upgrade $UNIFIED_RELEASE_NAME $UNIFIED_CHART -n $KW_NAMESPACE --reuse-values --set image.tag=<tag>"
