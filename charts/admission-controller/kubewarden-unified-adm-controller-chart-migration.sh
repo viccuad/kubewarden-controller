@@ -43,12 +43,11 @@
 #      are used) preserves the user's prior configuration. The migrated release is vanilla
 #      — it stores no overrides, so future upgrades need no special values.
 #
-#   5. Upgrade unified chart
-#      Now that Helm owns the release, doing a simple upgrade --keep-values
+#   6. Upgrade unified chart
+#      Now that Helm owns the release, doing a simple `helm upgrade --reuse-values`
 #      removes the leftover injected `helm.sh/resource-policy: keep` annotations.
 #
-#   6. Post-migration verification
-#      Confirms CRDs are owned by the new release, the controller
+#   7. Post-migration verification
 #      Deployment is running (located via its hardened label selector), RBAC and
 #      cert Secrets were adopted in place (UIDs unchanged), and the
 #      DefaultsApplier has labeled the default PolicyServer and recommended
@@ -884,9 +883,9 @@ phase_upgrade_unified() {
   info "chart source: $UNIFIED_CHART"
   info "namespace: $KW_NAMESPACE"
 
-  confirm "About to run 'helm upgrade $release_name --keep-values' to remove leftover injected 'helm.sh/resource-policy: keep' annotations"
+  confirm "About to run 'helm upgrade $release_name --reuse-values' to remove leftover injected 'helm.sh/resource-policy: keep' annotations"
 
-  if dry_run_guard "helm uprade $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --reuse-values"; then
+  if dry_run_guard "helm upgrade $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --reuse-values"; then
     hctl upgrade "$release_name" "$UNIFIED_CHART" \
       --namespace "$KW_NAMESPACE" \
       --reuse-values \
