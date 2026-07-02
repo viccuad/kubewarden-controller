@@ -26,9 +26,37 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const httpClientTimeout = 10 * time.Second
+
+// reportNameSet is a concurrency-safe set of report names (resource UIDs)
+// collected while auditing resources in parallel. It records the reports that
+// were created or patched during the current scan run, so that the garbage
+// collection step can delete only the reports that are NOT part of this run.
+type reportNameSet struct {
+	mu    sync.Mutex
+	names sets.Set[string]
+}
+
+func newReportNameSet() *reportNameSet {
+	return &reportNameSet{names: sets.New[string]()}
+}
+
+func (r *reportNameSet) insert(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.names.Insert(name)
+}
+
+// snapshot returns a copy of the collected names, safe to use after the audit
+// goroutines have finished.
+func (r *reportNameSet) snapshot() sets.Set[string] {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.names.Clone()
+}
 
 // Scanner verifies that existing resources don't violate any of the policies.
 type Scanner struct {
@@ -138,6 +166,7 @@ func (s *Scanner) ScanNamespace(ctx context.Context, nsName, runUID string) erro
 		slog.Int("parallel-resources-audits", s.parallelResourcesAudits))
 	semaphore := semaphore.NewWeighted(int64(s.parallelResourcesAudits))
 	var workers sync.WaitGroup
+	keptReports := newReportNameSet()
 
 	namespace, err := s.k8sClient.GetNamespace(ctx, nsName)
 	if err != nil {
@@ -174,7 +203,7 @@ func (s *Scanner) ScanNamespace(ctx context.Context, nsName, runUID string) erro
 				defer semaphore.Release(1)
 				defer workers.Done()
 
-				if auditErr := s.auditResource(ctx, policiesToAudit, *resource, runUID, policies.SkippedNum, policies.ErroredNum); auditErr != nil {
+				if auditErr := s.auditResource(ctx, policiesToAudit, *resource, runUID, policies.SkippedNum, policies.ErroredNum, keptReports); auditErr != nil {
 					s.logger.ErrorContext(ctx, "error auditing resource",
 						slog.String("error", auditErr.Error()),
 						slog.String("RunUID", runUID))
@@ -195,7 +224,7 @@ func (s *Scanner) ScanNamespace(ctx context.Context, nsName, runUID string) erro
 	}
 	workers.Wait()
 
-	if deleteErr := s.reportStore.DeleteOldReports(ctx, runUID, nsName); deleteErr != nil {
+	if deleteErr := s.reportStore.DeleteOldReports(ctx, keptReports.snapshot(), nsName); deleteErr != nil {
 		s.logger.ErrorContext(ctx, "error deleting old reports",
 			slog.String("error", deleteErr.Error()),
 			slog.String("RunUID", runUID))
@@ -256,6 +285,7 @@ func (s *Scanner) ScanClusterWideResources(ctx context.Context, runUID string) e
 
 	semaphore := semaphore.NewWeighted(int64(s.parallelResourcesAudits))
 	var workers sync.WaitGroup
+	keptReports := newReportNameSet()
 
 	policies, err := s.policiesClient.GetClusterWidePolicies(ctx)
 	if err != nil {
@@ -287,7 +317,7 @@ func (s *Scanner) ScanClusterWideResources(ctx context.Context, runUID string) e
 				defer semaphore.Release(1)
 				defer workers.Done()
 
-				s.auditClusterResource(ctx, policiesToAudit, *resource, runUID, policies.SkippedNum, policies.ErroredNum)
+				s.auditClusterResource(ctx, policiesToAudit, *resource, runUID, policies.SkippedNum, policies.ErroredNum, keptReports)
 			}()
 
 			return nil
@@ -305,7 +335,7 @@ func (s *Scanner) ScanClusterWideResources(ctx context.Context, runUID string) e
 
 	workers.Wait()
 
-	if deleteErr := s.reportStore.DeleteOldClusterReports(ctx, runUID); deleteErr != nil {
+	if deleteErr := s.reportStore.DeleteOldClusterReports(ctx, keptReports.snapshot()); deleteErr != nil {
 		s.logger.ErrorContext(ctx, "error deleting old ClusterReports",
 			slog.String("error", deleteErr.Error()),
 			slog.String("RunUID", runUID))
@@ -321,7 +351,7 @@ type policyAuditResult struct {
 }
 
 //gocognit:ignore
-func (s *Scanner) auditResource(ctx context.Context, policies []*policies.Policy, resource unstructured.Unstructured, runUID string, skippedPoliciesNum, erroredPoliciesNum int) error {
+func (s *Scanner) auditResource(ctx context.Context, policies []*policies.Policy, resource unstructured.Unstructured, runUID string, skippedPoliciesNum, erroredPoliciesNum int, keptReports *reportNameSet) error {
 	s.logger.InfoContext(ctx, "audit resource",
 		slog.String("resource", resource.GetName()),
 		slog.Int("policies-to-evaluate", len(policies)),
@@ -417,12 +447,16 @@ func (s *Scanner) auditResource(ctx context.Context, policies []*policies.Policy
 		err := s.reportStore.CreateOrPatchReport(ctx, policyReport)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "error adding PolicyReport to store.", slog.String("error", err.Error()))
+		} else {
+			// Record the report as part of this run so the garbage collection
+			// step does not delete it. The report name is the resource UID.
+			keptReports.insert(string(resource.GetUID()))
 		}
 	}
 	return nil
 }
 
-func (s *Scanner) auditClusterResource(ctx context.Context, policies []*policies.Policy, resource unstructured.Unstructured, runUID string, skippedPoliciesNum, erroredPoliciesNum int) {
+func (s *Scanner) auditClusterResource(ctx context.Context, policies []*policies.Policy, resource unstructured.Unstructured, runUID string, skippedPoliciesNum, erroredPoliciesNum int, keptReports *reportNameSet) {
 	s.logger.InfoContext(ctx, "audit clusterwide resource",
 		slog.String("resource", resource.GetName()),
 		slog.Int("policies-to-evaluate", len(policies)))
@@ -491,6 +525,10 @@ func (s *Scanner) auditClusterResource(ctx context.Context, policies []*policies
 		err := s.reportStore.CreateOrPatchClusterReport(ctx, clusterReport)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "error adding ClusterPolicyReport to store", slog.String("error", err.Error()))
+		} else {
+			// Record the report as part of this run so the garbage collection
+			// step does not delete it. The report name is the resource UID.
+			keptReports.insert(string(resource.GetUID()))
 		}
 	}
 }

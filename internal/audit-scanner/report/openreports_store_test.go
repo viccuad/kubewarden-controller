@@ -10,10 +10,12 @@ import (
 	openreports "github.com/openreports/reports-api/apis/openreports.io/v1alpha1"
 	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubewarden/adm-controller/internal/audit-scanner/testutils"
@@ -191,7 +193,7 @@ func TestDeleteReport(t *testing.T) {
 	logger := slog.Default()
 	store := NewOpenReportStore(fakeClient, logger)
 
-	err = store.DeleteOldReports(t.Context(), "new-uid", "default")
+	err = store.DeleteOldReports(t.Context(), sets.New("new-report"), "default")
 	require.NoError(t, err)
 
 	storedPolicyReportList := &openreports.ReportList{}
@@ -226,7 +228,7 @@ func TestDeleteClusterReport(t *testing.T) {
 	logger := slog.Default()
 	store := NewOpenReportStore(fakeClient, logger)
 
-	err = store.DeleteOldClusterReports(t.Context(), "new-uid")
+	err = store.DeleteOldClusterReports(t.Context(), sets.New("new-report"))
 	require.NoError(t, err)
 
 	storedPolicyReportList := &openreports.ClusterReportList{}
@@ -245,4 +247,57 @@ func TestDeleteClusterReport(t *testing.T) {
 	err = fakeClient.List(t.Context(), storedPolicyReportList, &client.ListOptions{LabelSelector: labelSelector})
 	require.NoError(t, err)
 	require.Len(t, storedPolicyReportList.Items, 1)
+}
+
+// TestDeleteOldReportsKeepsReportWrittenThisRunWithStaleLabel is a regression
+// test for the read-after-write race where a Report that was patched during the
+// current run could still be deleted because the garbage collection relied on
+// the run-uid label, whose new value may not yet be visible when the delete
+// runs. Deletion is now driven by the set of report names written this run, so a
+// kept report survives even if its run-uid label still shows a previous run.
+func TestDeleteOldReportsKeepsReportWrittenThisRunWithStaleLabel(t *testing.T) {
+	// "kept-report" is in the write-set but still carries a stale run-uid label,
+	// simulating a patch whose new label is not yet observable by the delete.
+	keptWithStaleLabel := testutils.NewPolicyReportFactory().
+		Name("kept-report").Namespace("default").RunUID("stale-uid").WithAppLabel().BuildOpenReports()
+	// "stale-report" is managed but was NOT written this run, so it must be deleted.
+	staleReport := testutils.NewPolicyReportFactory().
+		Name("stale-report").Namespace("default").RunUID("stale-uid").WithAppLabel().BuildOpenReports()
+
+	fakeClient, err := testutils.NewFakeClient(keptWithStaleLabel, staleReport)
+	require.NoError(t, err)
+	store := NewOpenReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteOldReports(t.Context(), sets.New("kept-report"), "default")
+	require.NoError(t, err)
+
+	// kept-report must survive despite its stale run-uid label.
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "kept-report", Namespace: "default"}, &openreports.Report{})
+	require.NoError(t, err)
+
+	// stale-report must be deleted.
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "stale-report", Namespace: "default"}, &openreports.Report{})
+	require.True(t, apierrors.IsNotFound(err))
+}
+
+// TestDeleteOldClusterReportsKeepsReportWrittenThisRunWithStaleLabel is the
+// cluster-scoped counterpart of the regression test above.
+func TestDeleteOldClusterReportsKeepsReportWrittenThisRunWithStaleLabel(t *testing.T) {
+	keptWithStaleLabel := testutils.NewClusterPolicyReportFactory().
+		Name("kept-report").RunUID("stale-uid").WithAppLabel().BuildOpenReports()
+	staleReport := testutils.NewClusterPolicyReportFactory().
+		Name("stale-report").RunUID("stale-uid").WithAppLabel().BuildOpenReports()
+
+	fakeClient, err := testutils.NewFakeClient(keptWithStaleLabel, staleReport)
+	require.NoError(t, err)
+	store := NewOpenReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteOldClusterReports(t.Context(), sets.New("kept-report"))
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "kept-report"}, &openreports.ClusterReport{})
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "stale-report"}, &openreports.ClusterReport{})
+	require.True(t, apierrors.IsNotFound(err))
 }

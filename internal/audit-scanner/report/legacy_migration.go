@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/google/uuid"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,21 +16,16 @@ import (
 //
 // This is called once per scan when scans save openreports.
 //
-// The deletion is performed with existing functions that do performant
-// deletecollection api calls.
+// The deletion is performed with a single deletecollection api call per kind,
+// which is cheap and free of read-after-write races: every kubewarden-managed
+// legacy report is deleted unconditionally, so there is no risk of removing a
+// report that was just written by the current scan (openreports are a different
+// kind and are never matched here).
 //
 // For reducing cost in subsequent runs, it checks for the existence of legacy
 // wgpolicyk8s.io reports before attempting deletion: in clusters with many
 // namespaces the cost after the first migration is just two cheap List calls.
 func DeleteAllLegacyPolicyReports(ctx context.Context, c client.Client, logger *slog.Logger) error {
-	// The store.DeleteOldReports() functions that we are reusing delete stale
-	// reports prior to saving a new scan. They do this by using a scanRunID.
-	// Here, a fresh UUID is used as the scanRunID: since no existing report will carry
-	// this UID, the "run-uid != <id>" selector matches all of them, effectively
-	// deleting every kubewarden-managed report.
-	ephemeralRunUID := uuid.New().String()
-	store := NewPolicyReportStore(c, logger)
-
 	labelSelector, err := labels.Parse(fmt.Sprintf("%s=%s", labelAppManagedBy, labelApp))
 	if err != nil {
 		return fmt.Errorf("failed to parse label selector: %w", err)
@@ -50,8 +43,10 @@ func DeleteAllLegacyPolicyReports(ctx context.Context, c client.Client, logger *
 		return fmt.Errorf("failed to list legacy ClusterPolicyReports: %w", err)
 	case len(clusterReportList.Items) > 0:
 		logger.InfoContext(ctx, "Deleting legacy wgpolicyk8s.io ClusterPolicyReports")
-		if err = store.DeleteOldClusterReports(ctx, ephemeralRunUID); err != nil {
-			return err
+		if err = c.DeleteAllOf(ctx, &wgpolicy.ClusterPolicyReport{}, &client.DeleteAllOfOptions{
+			ListOptions: client.ListOptions{LabelSelector: labelSelector},
+		}); err != nil {
+			return fmt.Errorf("failed to delete legacy ClusterPolicyReports: %w", err)
 		}
 	}
 
@@ -63,16 +58,11 @@ func DeleteAllLegacyPolicyReports(ctx context.Context, c client.Client, logger *
 	case err != nil:
 		return fmt.Errorf("failed to list legacy PolicyReports: %w", err)
 	case len(policyReportList.Items) > 0:
-		namespaceList := &corev1.NamespaceList{}
-		if err = c.List(ctx, namespaceList); err != nil {
-			return fmt.Errorf("failed to list namespaces: %w", err)
-		}
-		for _, ns := range namespaceList.Items {
-			logger.InfoContext(ctx, "Deleting legacy wgpolicyk8s.io PolicyReports",
-				slog.String("namespace", ns.Name))
-			if err = store.DeleteOldReports(ctx, ephemeralRunUID, ns.Name); err != nil {
-				return err
-			}
+		logger.InfoContext(ctx, "Deleting legacy wgpolicyk8s.io PolicyReports")
+		if err = c.DeleteAllOf(ctx, &wgpolicy.PolicyReport{}, &client.DeleteAllOfOptions{
+			ListOptions: client.ListOptions{LabelSelector: labelSelector},
+		}); err != nil {
+			return fmt.Errorf("failed to delete legacy PolicyReports: %w", err)
 		}
 	}
 

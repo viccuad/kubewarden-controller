@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	auditConstants "github.com/kubewarden/adm-controller/internal/audit-scanner/constants"
 	openreports "github.com/openreports/reports-api/apis/openreports.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -64,21 +63,22 @@ func (s *OpenReportStore) CreateOrPatchReport(ctx context.Context, obj any) erro
 	return nil
 }
 
-// DeleteOldReports deletes all the OpenReports Reports that do not belong to the current scan run.
-func (s *OpenReportStore) DeleteOldReports(ctx context.Context, scanRunID, namespace string) error {
-	labelSelector, err := labels.Parse(fmt.Sprintf("%s!=%s,%s=%s", auditConstants.AuditScannerRunUIDLabel, scanRunID, labelAppManagedBy, labelApp))
+// DeleteOldReports deletes all the kubewarden-managed OpenReports Reports in the
+// given namespace whose name is not present in keptReports (the reports created
+// or patched during the current scan run).
+func (s *OpenReportStore) DeleteOldReports(ctx context.Context, keptReports sets.Set[string], namespace string) error {
+	labelSelector, err := managedByKubewardenSelector()
 	if err != nil {
-		return fmt.Errorf("failed to parse label selector: %w", err)
+		return err
 	}
-	s.logger.DebugContext(ctx, "Deleting old PolicyReports", slog.String("labelSelector", labelSelector.String()))
+	s.logger.DebugContext(ctx, "Deleting old Reports",
+		slog.String("namespace", namespace),
+		slog.Int("kept-reports", keptReports.Len()))
 
-	if deleteErr := s.client.DeleteAllOf(ctx, &openreports.Report{}, &client.DeleteAllOfOptions{ListOptions: client.ListOptions{
+	return deleteReportsNotInSet(ctx, s.client, s.logger, &openreports.ReportList{}, &client.ListOptions{
 		LabelSelector: labelSelector,
 		Namespace:     namespace,
-	}}); deleteErr != nil {
-		return fmt.Errorf("failed to delete PolicyReports: %w", deleteErr)
-	}
-	return nil
+	}, keptReports)
 }
 
 // CreateOrPatchClusterReport creates or patches a OpenReports ClusterReport.
@@ -117,18 +117,18 @@ func (s *OpenReportStore) CreateOrPatchClusterReport(ctx context.Context, obj an
 	return nil
 }
 
-// DeleteOldClusterReports deletes all the OpenReports ClusterReports that do not belong to the current scan run.
-func (s *OpenReportStore) DeleteOldClusterReports(ctx context.Context, scanRunID string) error {
-	labelSelector, err := labels.Parse(fmt.Sprintf("%s!=%s,%s=%s", auditConstants.AuditScannerRunUIDLabel, scanRunID, labelAppManagedBy, labelApp))
+// DeleteOldClusterReports deletes all the kubewarden-managed OpenReports
+// ClusterReports whose name is not present in keptReports (the reports created
+// or patched during the current scan run).
+func (s *OpenReportStore) DeleteOldClusterReports(ctx context.Context, keptReports sets.Set[string]) error {
+	labelSelector, err := managedByKubewardenSelector()
 	if err != nil {
-		return fmt.Errorf("failed to parse label selector: %w", err)
+		return err
 	}
-	s.logger.DebugContext(ctx, "Deleting old ClusterPolicyReports", slog.String("labelSelector", labelSelector.String()))
+	s.logger.DebugContext(ctx, "Deleting old ClusterReports",
+		slog.Int("kept-reports", keptReports.Len()))
 
-	if deleteErr := s.client.DeleteAllOf(ctx, &openreports.ClusterReport{}, &client.DeleteAllOfOptions{ListOptions: client.ListOptions{
+	return deleteReportsNotInSet(ctx, s.client, s.logger, &openreports.ClusterReportList{}, &client.ListOptions{
 		LabelSelector: labelSelector,
-	}}); deleteErr != nil {
-		return fmt.Errorf("failed to delete ClusterPolicyReports: %w", deleteErr)
-	}
-	return nil
+	}, keptReports)
 }
