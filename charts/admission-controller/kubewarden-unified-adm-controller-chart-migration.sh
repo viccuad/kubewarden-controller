@@ -43,8 +43,11 @@
 #      are used) preserves the user's prior configuration. The migrated release is vanilla
 #      — it stores no overrides, so future upgrades need no special values.
 #
-#   5. Post-migration verification
-#      Confirms CRDs are owned by the new release, the controller
+#   6. Upgrade unified chart
+#      Now that Helm owns the release, doing a simple `helm upgrade --reuse-values`
+#      removes the leftover injected `helm.sh/resource-policy: keep` annotations.
+#
+#   7. Post-migration verification
 #      Deployment is running (located via its hardened label selector), RBAC and
 #      cert Secrets were adopted in place (UIDs unchanged), and the
 #      DefaultsApplier has labeled the default PolicyServer and recommended
@@ -141,53 +144,99 @@ print_help() {
 
 require_flag_value() {
   local flag="$1" value="${2:-}"
-  [[ -n "$value" ]] || { echo "missing value for $flag" >&2; exit 2; }
+  [[ -n "$value" ]] || {
+    echo "missing value for $flag" >&2
+    exit 2
+  }
 }
 
-while (( $# > 0 )); do
+while (($# > 0)); do
   case "$1" in
-    --unified-chart)
-      require_flag_value "$1" "${2:-}"; UNIFIED_CHART="$2"; shift 2 ;;
-    --unified-chart=*)
-      UNIFIED_CHART="${1#--unified-chart=}"; shift ;;
-    --namespace|-n)
-      require_flag_value "$1" "${2:-}"; KW_NAMESPACE="$2"; shift 2 ;;
-    --namespace=*)
-      KW_NAMESPACE="${1#--namespace=}"; shift ;;
-    --kube-context)
-      require_flag_value "$1" "${2:-}"; KUBE_CONTEXT="$2"; shift 2 ;;
-    --kube-context=*)
-      KUBE_CONTEXT="${1#--kube-context=}"; shift ;;
-    --repo-name)
-      require_flag_value "$1" "${2:-}"; HELM_REPO_NAME="$2"; shift 2 ;;
-    --repo-name=*)
-      HELM_REPO_NAME="${1#--repo-name=}"; shift ;;
+  --unified-chart)
+    require_flag_value "$1" "${2:-}"
+    UNIFIED_CHART="$2"
+    shift 2
+    ;;
+  --unified-chart=*)
+    UNIFIED_CHART="${1#--unified-chart=}"
+    shift
+    ;;
+  --namespace | -n)
+    require_flag_value "$1" "${2:-}"
+    KW_NAMESPACE="$2"
+    shift 2
+    ;;
+  --namespace=*)
+    KW_NAMESPACE="${1#--namespace=}"
+    shift
+    ;;
+  --kube-context)
+    require_flag_value "$1" "${2:-}"
+    KUBE_CONTEXT="$2"
+    shift 2
+    ;;
+  --kube-context=*)
+    KUBE_CONTEXT="${1#--kube-context=}"
+    shift
+    ;;
+  --repo-name)
+    require_flag_value "$1" "${2:-}"
+    HELM_REPO_NAME="$2"
+    shift 2
+    ;;
+  --repo-name=*)
+    HELM_REPO_NAME="${1#--repo-name=}"
+    shift
+    ;;
 
-    --timeout)
-      require_flag_value "$1" "${2:-}"; WAIT_TIMEOUT="$2"; shift 2 ;;
-    --timeout=*)
-      WAIT_TIMEOUT="${1#--timeout=}"; shift ;;
-    --no-interactive)
-      INTERACTIVE=0; shift ;;
-    --dry-run)
-      DRY_RUN=1; shift ;;
-    --verbose)
-      VERBOSE=1; shift ;;
-    --set)
-      require_flag_value "$1" "${2:-}"; HELM_INSTALL_EXTRA_ARGS+=(--set "$2"); shift 2 ;;
-    --set=*)
-      HELM_INSTALL_EXTRA_ARGS+=(--set "${1#--set=}"); shift ;;
-    --values|-f)
-      require_flag_value "$1" "${2:-}"; HELM_INSTALL_EXTRA_ARGS+=(--values "$2"); shift 2 ;;
-    --values=*)
-      HELM_INSTALL_EXTRA_ARGS+=(--values "${1#--values=}"); shift ;;
-    -h|--help)
-      print_help; exit 0 ;;
-    *)
-      echo "unknown argument: $1" >&2
-      echo "run with --help for usage" >&2
-      exit 2
-      ;;
+  --timeout)
+    require_flag_value "$1" "${2:-}"
+    WAIT_TIMEOUT="$2"
+    shift 2
+    ;;
+  --timeout=*)
+    WAIT_TIMEOUT="${1#--timeout=}"
+    shift
+    ;;
+  --no-interactive)
+    INTERACTIVE=0
+    shift
+    ;;
+  --dry-run)
+    DRY_RUN=1
+    shift
+    ;;
+  --verbose)
+    VERBOSE=1
+    shift
+    ;;
+  --set)
+    require_flag_value "$1" "${2:-}"
+    HELM_INSTALL_EXTRA_ARGS+=(--set "$2")
+    shift 2
+    ;;
+  --set=*)
+    HELM_INSTALL_EXTRA_ARGS+=(--set "${1#--set=}")
+    shift
+    ;;
+  --values | -f)
+    require_flag_value "$1" "${2:-}"
+    HELM_INSTALL_EXTRA_ARGS+=(--values "$2")
+    shift 2
+    ;;
+  --values=*)
+    HELM_INSTALL_EXTRA_ARGS+=(--values "${1#--values=}")
+    shift
+    ;;
+  -h | --help)
+    print_help
+    exit 0
+    ;;
+  *)
+    echo "unknown argument: $1" >&2
+    echo "run with --help for usage" >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -200,28 +249,34 @@ fi
 #------------------------------------------------------------------------------
 # Logging / helpers
 #------------------------------------------------------------------------------
-: > "$LOG_FILE"
+: >"$LOG_FILE"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 warn() { printf '    \033[1;33mWARN:\033[0m %s\n' "$*"; }
-fail() { printf '\n\033[1;31mFAIL: %s\033[0m\n' "$*" >&2; exit 1; }
-ok()   { printf '    \033[1;32mOK\033[0m %s\n' "$*"; }
+fail() {
+  printf '\n\033[1;31mFAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
+ok() { printf '    \033[1;32mOK\033[0m %s\n' "$*"; }
 
 confirm() {
-  if (( INTERACTIVE == 0 )); then return 0; fi
+  if ((INTERACTIVE == 0)); then return 0; fi
   local msg="$1"
   printf '\n    \033[1;33m%s\033[0m\n' "$msg"
   read -r -p "    Continue? (y/n) " choice
   case "$choice" in
-    y|Y) return 0 ;;
-    *) echo "Aborted by user."; exit 0 ;;
+  y | Y) return 0 ;;
+  *)
+    echo "Aborted by user."
+    exit 0
+    ;;
   esac
 }
 
 dry_run_guard() {
-  if (( DRY_RUN == 1 )); then
+  if ((DRY_RUN == 1)); then
     info "[dry-run] would run: $*"
     return 1
   fi
@@ -302,7 +357,7 @@ wait_managed_by_label() {
   local i v
   for i in $(seq 1 60); do
     v="$(kctl "${kctl_args[@]}" get "$kind" "$name" \
-          -o jsonpath='{.metadata.labels.kubewarden\.io/managed-by}' 2>/dev/null || true)"
+      -o jsonpath='{.metadata.labels.kubewarden\.io/managed-by}' 2>/dev/null || true)"
     if [[ "$v" == "kubewarden-controller-defaults" ]]; then
       ok "$kind/$name has DefaultsApplier label"
       return 0
@@ -326,8 +381,8 @@ phase_preflight() {
   local helm_major
   helm_major="$(helm_major_version)"
   [[ -n "$helm_major" ]] || fail "could not determine Helm version"
-  (( helm_major >= 4 )) \
-    || fail "Helm v4+ is required (Server-Side Apply + post-renderer plugins). Found: $(helm version --short)"
+  ((helm_major >= 4)) ||
+    fail "Helm v4+ is required (Server-Side Apply + post-renderer plugins). Found: $(helm version --short)"
   ok "Helm v4+ detected"
 
   if [[ -n "$KUBE_CONTEXT" ]]; then
@@ -335,8 +390,8 @@ phase_preflight() {
   else
     info "using current kube context: $(kubectl config current-context 2>/dev/null || echo '<none>')"
   fi
-  kctl cluster-info >/dev/null 2>&1 \
-    || fail "cannot connect to Kubernetes cluster"
+  kctl cluster-info >/dev/null 2>&1 ||
+    fail "cannot connect to Kubernetes cluster"
   ok "cluster is reachable"
 
   # Classify the unified chart source and validate repo alias consistency.
@@ -348,17 +403,17 @@ phase_preflight() {
     local chart_alias="${UNIFIED_CHART%%/*}"
     if [[ "$chart_alias" != "$HELM_REPO_NAME" ]]; then
       fail "unified chart alias '$chart_alias' does not match --repo-name '$HELM_REPO_NAME'." \
-           $'\nAlign them (e.g. --repo-name '"$chart_alias"') or pass a local tarball to --unified-chart.'
+        $'\nAlign them (e.g. --repo-name '"$chart_alias"') or pass a local tarball to --unified-chart.'
     fi
 
     # Verify the alias exists in the user's local Helm config; never mutate it.
     info "verifying Helm repo alias '$HELM_REPO_NAME' is configured locally"
     local repo_url_local
-    repo_url_local="$(helm repo list -o json 2>/dev/null \
-      | jq -r --arg name "$HELM_REPO_NAME" '.[] | select(.name==$name) | .url' 2>/dev/null || true)"
+    repo_url_local="$(helm repo list -o json 2>/dev/null |
+      jq -r --arg name "$HELM_REPO_NAME" '.[] | select(.name==$name) | .url' 2>/dev/null || true)"
     if [[ -z "$repo_url_local" ]]; then
       fail "Helm repo alias '$HELM_REPO_NAME' is not configured locally." \
-           $'\nRun: helm repo add '"$HELM_REPO_NAME"' <url> && helm repo update\nThen re-run the migration script.'
+        $'\nRun: helm repo add '"$HELM_REPO_NAME"' <url> && helm repo update\nThen re-run the migration script.'
     fi
     info "repo alias '$HELM_REPO_NAME' points to: $repo_url_local"
 
@@ -381,12 +436,12 @@ phase_preflight() {
     fi
 
     app_version="$(hctl get metadata "$release" -n "$KW_NAMESPACE" -o json | jq -r '.appVersion')"
-    [[ -n "$app_version" && "$app_version" != "null" ]] \
-      || fail "could not determine installed appVersion for $release"
+    [[ -n "$app_version" && "$app_version" != "null" ]] ||
+      fail "could not determine installed appVersion for $release"
 
     # Migration requires legacy charts to be at appVersion v1.36.0 before proceeding.
-    [[ "$app_version" == "v1.36.0" ]] \
-      || fail "$release has appVersion $app_version; this migration requires appVersion v1.36.0"
+    [[ "$app_version" == "v1.36.0" ]] ||
+      fail "$release has appVersion $app_version; this migration requires appVersion v1.36.0"
     ok "$release appVersion is $app_version (v1.36.0 — OK)"
 
     # Remember the kubewarden-controller release name for unified chart install.
@@ -399,8 +454,8 @@ phase_preflight() {
     # chart's appVersion images are used; a stale tag would run an old image
     # that lacks the new controller flags and crashloop, failing the install.
     local overridden
-    overridden="$(hctl get values "$release" -n "$KW_NAMESPACE" -o yaml 2>/dev/null \
-      | detect_overridden_image_tags)"
+    overridden="$(hctl get values "$release" -n "$KW_NAMESPACE" -o yaml 2>/dev/null |
+      detect_overridden_image_tags)"
     if [[ -n "$overridden" ]]; then
       warn "$release overrides component image tag(s): ${overridden//$'\n'/, }"
       warn "  these overrides will be DROPPED; the unified chart's appVersion images will be used."
@@ -408,8 +463,8 @@ phase_preflight() {
     fi
   done
 
-  [[ -n "$LEGACY_CONTROLLER_RELEASE_NAME" ]] \
-    || fail "could not determine the legacy kubewarden-controller release name"
+  [[ -n "$LEGACY_CONTROLLER_RELEASE_NAME" ]] ||
+    fail "could not determine the legacy kubewarden-controller release name"
   info "unified chart will be installed with release name: $UNIFIED_RELEASE_NAME"
 
   # Resolve the unified chart now — before any destructive step — so a bad
@@ -418,7 +473,7 @@ phase_preflight() {
   local chart_meta
   if ! chart_meta="$(hctl show chart "$UNIFIED_CHART" 2>/dev/null)"; then
     fail "unified chart '$UNIFIED_CHART' could not be resolved." \
-         $'\nFor repo charts: ensure the alias is correct and the repo index is current.\nFor local charts: check the path exists.'
+      $'\nFor repo charts: ensure the alias is correct and the repo index is current.\nFor local charts: check the path exists.'
   fi
   local resolved_name resolved_version
   resolved_name="$(printf '%s\n' "$chart_meta" | yq '.name' 2>/dev/null || true)"
@@ -427,8 +482,8 @@ phase_preflight() {
 
   # Verify CRDs exist.
   for crd in "${KW_CRDS[@]}"; do
-    kctl get crd "$crd" >/dev/null 2>&1 \
-      || fail "CRD $crd not found; the kubewarden-crds release may be incomplete"
+    kctl get crd "$crd" >/dev/null 2>&1 ||
+      fail "CRD $crd not found; the kubewarden-crds release may be incomplete"
   done
   ok "all Kubewarden CRDs present"
 
@@ -441,7 +496,7 @@ phase_preflight() {
     kctl get clusteradmissionpolicies \
       -o jsonpath='{range .items[?(@.metadata.annotations.meta\.helm\.sh/release-name=="kubewarden-defaults")]}{.metadata.name}{"\n"}{end}' 2>/dev/null
   )
-  if (( ${#RECOMMENDED_POLICIES[@]} > 0 )); then
+  if ((${#RECOMMENDED_POLICIES[@]} > 0)); then
     ok "found ${#RECOMMENDED_POLICIES[@]} recommended policies: ${RECOMMENDED_POLICIES[*]}"
   else
     info "no recommended ClusterAdmissionPolicies found from kubewarden-defaults (this is fine if they were not enabled)"
@@ -474,7 +529,7 @@ phase_inject_keep_annotations() {
 
   # Create the post-renderer plugin.
   mkdir -p "$POSTRENDER_PLUGIN_DIR"
-  cat > "$POSTRENDER_PLUGIN_DIR/plugin.yaml" <<'EOF'
+  cat >"$POSTRENDER_PLUGIN_DIR/plugin.yaml" <<'EOF'
 apiVersion: v1
 type: postrenderer/v1
 name: kw-keep-postrenderer
@@ -489,9 +544,9 @@ EOF
   sed 's/^/      /' "$POSTRENDER_PLUGIN_DIR/plugin.yaml"
 
   info "installing post-renderer plugin"
-  hctl plugin install "$POSTRENDER_PLUGIN_DIR" 2>/dev/null \
-    || hctl plugin update kw-keep-postrenderer 2>/dev/null \
-    || true
+  hctl plugin install "$POSTRENDER_PLUGIN_DIR" 2>/dev/null ||
+    hctl plugin update kw-keep-postrenderer 2>/dev/null ||
+    true
   ok "plugin kw-keep-postrenderer installed"
 
   confirm "About to run 'helm upgrade --reuse-values --post-renderer' on all 3 legacy releases to inject keep annotations."
@@ -502,8 +557,8 @@ EOF
     chart="${entry##*=}"
 
     version="$(hctl get metadata "$release" -n "$KW_NAMESPACE" -o json | jq -r '.version')"
-    [[ -n "$version" && "$version" != "null" ]] \
-      || fail "could not determine installed chart version for $release"
+    [[ -n "$version" && "$version" != "null" ]] ||
+      fail "could not determine installed chart version for $release"
 
     # Per-release keep policy:
     #  - crds / defaults: keep ALL rendered docs (data + identity).
@@ -544,39 +599,39 @@ EOF
     fi
   done
 
-  if (( DRY_RUN == 0 )); then
+  if ((DRY_RUN == 0)); then
     step "Verifying keep annotations on critical resources"
     local v
 
     for crd in "${KW_CRDS[@]}"; do
       v="$(kctl get crd "$crd" -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
-      [[ "$v" == "keep" ]] \
-        || fail "CRD $crd is missing helm.sh/resource-policy=keep after upgrade"
+      [[ "$v" == "keep" ]] ||
+        fail "CRD $crd is missing helm.sh/resource-policy=keep after upgrade"
       ok "$crd has keep annotation"
     done
 
     # Only kubewarden-ca is kept from the controller release; the leaf certs are
     # intentionally left unkept so the unified install regenerates them.
     v="$(kctl -n "$KW_NAMESPACE" get secret kubewarden-ca -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
-    [[ "$v" == "keep" ]] \
-      || fail "Secret/kubewarden-ca is missing keep annotation after upgrade"
+    [[ "$v" == "keep" ]] ||
+      fail "Secret/kubewarden-ca is missing keep annotation after upgrade"
     ok "Secret/kubewarden-ca has keep annotation"
 
     v="$(kctl get policyserver default -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
-    [[ "$v" == "keep" ]] \
-      || warn "PolicyServer/default does not have keep annotation (may not exist if defaults were not enabled)"
+    [[ "$v" == "keep" ]] ||
+      warn "PolicyServer/default does not have keep annotation (may not exist if defaults were not enabled)"
 
     v="$(kctl -n "$KW_NAMESPACE" get sa policy-server -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
-    [[ "$v" == "keep" ]] \
-      || warn "ServiceAccount/policy-server does not have keep annotation"
+    [[ "$v" == "keep" ]] ||
+      warn "ServiceAccount/policy-server does not have keep annotation"
 
     v="$(kctl get clusterrole kubewarden-context-watcher -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
-    [[ "$v" == "keep" ]] \
-      || warn "ClusterRole/kubewarden-context-watcher does not have keep annotation"
+    [[ "$v" == "keep" ]] ||
+      warn "ClusterRole/kubewarden-context-watcher does not have keep annotation"
 
     v="$(kctl get clusterrolebinding kubewarden-context-watcher -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' 2>/dev/null || true)"
-    [[ "$v" == "keep" ]] \
-      || warn "ClusterRoleBinding/kubewarden-context-watcher does not have keep annotation"
+    [[ "$v" == "keep" ]] ||
+      warn "ClusterRoleBinding/kubewarden-context-watcher does not have keep annotation"
   fi
 }
 
@@ -599,20 +654,20 @@ phase_uninstall_legacy() {
     fi
   done
 
-  if (( DRY_RUN == 1 )); then return; fi
+  if ((DRY_RUN == 1)); then return; fi
 
   step "Verifying resources survived uninstall"
 
   info "checking CRDs"
   for crd in "${KW_CRDS[@]}"; do
-    kctl get crd "$crd" >/dev/null 2>&1 \
-      || fail "CRD $crd was deleted during uninstall"
+    kctl get crd "$crd" >/dev/null 2>&1 ||
+      fail "CRD $crd was deleted during uninstall"
     ok "$crd survived"
   done
 
   info "checking kubewarden-ca Secret (root of trust; leaf certs are regenerated by the unified install)"
-  kctl -n "$KW_NAMESPACE" get secret kubewarden-ca >/dev/null 2>&1 \
-    || fail "Secret/kubewarden-ca was deleted during uninstall"
+  kctl -n "$KW_NAMESPACE" get secret kubewarden-ca >/dev/null 2>&1 ||
+    fail "Secret/kubewarden-ca was deleted during uninstall"
   ok "Secret/kubewarden-ca survived"
 
   info "checking default PolicyServer"
@@ -651,8 +706,8 @@ phase_uninstall_legacy() {
 
   info "checking legacy controller plumbing was removed (expected)"
   if kctl -n "$KW_NAMESPACE" get deployment \
-      -l "app.kubernetes.io/instance=$LEGACY_CONTROLLER_RELEASE_NAME,app.kubernetes.io/component=controller" \
-      --no-headers 2>/dev/null | grep -q .; then
+    -l "app.kubernetes.io/instance=$LEGACY_CONTROLLER_RELEASE_NAME,app.kubernetes.io/component=controller" \
+    --no-headers 2>/dev/null | grep -q .; then
     warn "legacy controller Deployment still present (expected to be deleted; will be reconciled by the unified install)"
   else
     ok "legacy controller Deployment removed (will be recreated by the unified install)"
@@ -679,14 +734,14 @@ phase_build_merged_values() {
   # user-managed file holding real config). Prompt in interactive mode, fail
   # fast otherwise.
   if [[ -e "$MERGED_VALUES_FILE" ]]; then
-    if (( INTERACTIVE == 1 )); then
+    if ((INTERACTIVE == 1)); then
       confirm "merged values file $MERGED_VALUES_FILE already exists and will be overwritten."
     else
       fail "merged values file $MERGED_VALUES_FILE already exists; remove it or set MERGED_VALUES_FILE to a new path"
     fi
   fi
 
-  : > "$MERGED_VALUES_FILE"
+  : >"$MERGED_VALUES_FILE"
 
   local entry release vals
   for entry in "${LEGACY_RELEASES[@]}"; do
@@ -732,14 +787,14 @@ phase_build_merged_values() {
     {
       printf '# values from legacy release: %s\n' "$release"
       printf '%s\n' "$vals"
-    } >> "$MERGED_VALUES_FILE"
+    } >>"$MERGED_VALUES_FILE"
   done
 
   ok "merged values written to $MERGED_VALUES_FILE"
   # The merged values come from `helm get values` and may carry sensitive
   # user-supplied config, so only dump the full contents under --verbose;
   # otherwise just point at the file.
-  if (( VERBOSE == 1 )); then
+  if ((VERBOSE == 1)); then
     info "merged values:"
     sed 's/^/      /' "$MERGED_VALUES_FILE"
   else
@@ -795,10 +850,10 @@ phase_install_unified() {
   if [[ ! -f "$UNIFIED_CHART" && ! -d "$UNIFIED_CHART" ]]; then
     info "repo chart detected: resolving chart version for appVersion v1.37.0"
     local chart_version_for_app
-    chart_version_for_app="$(hctl search repo "$UNIFIED_CHART" --versions -o json \
-      | jq -r '[.[] | select(.app_version == "v1.37.0")] | first | .version // empty' 2>/dev/null || true)"
-    [[ -n "$chart_version_for_app" ]] \
-      || fail "could not find a chart in '$UNIFIED_CHART' with appVersion v1.37.0; ensure the repo is up to date"
+    chart_version_for_app="$(hctl search repo "$UNIFIED_CHART" --versions -o json |
+      jq -r '[.[] | select(.app_version == "v1.37.0")] | first | .version // empty' 2>/dev/null || true)"
+    [[ -n "$chart_version_for_app" ]] ||
+      fail "could not find a chart in '$UNIFIED_CHART' with appVersion v1.37.0; ensure the repo is up to date"
     helm_version_flag=(--version "$chart_version_for_app")
     info "resolved chart version $chart_version_for_app for appVersion v1.37.0"
   fi
@@ -814,8 +869,37 @@ phase_install_unified() {
     ok "unified chart installed"
   fi
 
-  if (( DRY_RUN == 1 )); then return; fi
+  if ((DRY_RUN == 1)); then return; fi
+}
 
+#------------------------------------------------------------------------------
+# Phase 6: Upgrade unified chart
+#------------------------------------------------------------------------------
+phase_upgrade_unified() {
+  step "Phase 6: Upgrade unified chart to remove keep annotations"
+
+  local release_name="$UNIFIED_RELEASE_NAME"
+  info "release name: $release_name (fresh unified release)"
+  info "chart source: $UNIFIED_CHART"
+  info "namespace: $KW_NAMESPACE"
+
+  confirm "About to run 'helm upgrade $release_name --reuse-values' to remove leftover injected 'helm.sh/resource-policy: keep' annotations"
+
+  if dry_run_guard "helm upgrade $release_name $UNIFIED_CHART --namespace $KW_NAMESPACE --reuse-values"; then
+    hctl upgrade "$release_name" "$UNIFIED_CHART" \
+      --namespace "$KW_NAMESPACE" \
+      --reuse-values \
+      --wait --timeout "$WAIT_TIMEOUT"
+    ok "unified chart upgraded"
+  fi
+
+  if ((DRY_RUN == 1)); then return; fi
+}
+
+#------------------------------------------------------------------------------
+# Phase 7: Post-migration verification
+#------------------------------------------------------------------------------
+post_migration_verification() {
   step "Post-migration verification"
 
   # Verify CRD ownership.
@@ -823,8 +907,8 @@ phase_install_unified() {
   local rel
   for crd in "${KW_CRDS[@]}"; do
     rel="$(kctl get crd "$crd" -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}' 2>/dev/null || true)"
-    [[ "$rel" == "$release_name" ]] \
-      || fail "CRD $crd is not owned by '$release_name' (got: '$rel')"
+    [[ "$rel" == "$release_name" ]] ||
+      fail "CRD $crd is not owned by '$release_name' (got: '$rel')"
     ok "$crd owned by $release_name"
   done
 
@@ -836,9 +920,9 @@ phase_install_unified() {
     if [[ -n "$SNAPSHOT_SA_UID" ]]; then
       local uid_after
       uid_after="$(kctl -n "$KW_NAMESPACE" get sa policy-server -o jsonpath='{.metadata.uid}')"
-      [[ "$SNAPSHOT_SA_UID" == "$uid_after" ]] \
-        && ok "ServiceAccount/policy-server UID unchanged (in-place adoption)" \
-        || warn "ServiceAccount/policy-server UID changed (before=$SNAPSHOT_SA_UID after=$uid_after)"
+      [[ "$SNAPSHOT_SA_UID" == "$uid_after" ]] &&
+        ok "ServiceAccount/policy-server UID unchanged (in-place adoption)" ||
+        warn "ServiceAccount/policy-server UID changed (before=$SNAPSHOT_SA_UID after=$uid_after)"
     fi
   else
     warn "ServiceAccount/policy-server not adopted by '$release_name' (got: '$rel')"
@@ -880,7 +964,7 @@ phase_install_unified() {
   local sel="app.kubernetes.io/component=controller,app.kubernetes.io/instance=${release_name}"
   local controller_dep
   controller_dep="$(kctl -n "$KW_NAMESPACE" get deployment -l "$sel" \
-                     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   if [[ -n "$controller_dep" ]]; then
     local ready
     ready="$(kctl -n "$KW_NAMESPACE" get deployment "$controller_dep" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)"
@@ -924,6 +1008,8 @@ phase_build_merged_values
 phase_inject_keep_annotations
 phase_uninstall_legacy
 phase_install_unified
+phase_upgrade_unified
+phase_post_migration_verification
 
 step "Migration completed successfully"
 info "The unified chart is installed as release '$UNIFIED_RELEASE_NAME' in namespace '$KW_NAMESPACE'."
