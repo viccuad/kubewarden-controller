@@ -8,6 +8,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	sigsyaml "sigs.k8s.io/yaml"
@@ -26,6 +28,21 @@ func marshalPolicyServer(ps *policiesv1.PolicyServer) string {
 func marshalClusterAdmissionPolicy(policy *policiesv1.ClusterAdmissionPolicy) string {
 	policy.SetGroupVersionKind(policiesv1.GroupVersion.WithKind("ClusterAdmissionPolicy"))
 	data, err := sigsyaml.Marshal(policy)
+	Expect(err).ToNot(HaveOccurred())
+	return string(data)
+}
+
+// marshalClusterAdmissionPolicyWithoutBackgroundAudit renders a ClusterAdmissionPolicy to YAML
+// with the spec.backgroundAudit field removed entirely, mimicking a chart template that omits it.
+// This lets us assert that the applier lets the API server apply the CRD default (true) instead of
+// clobbering it with the Go zero value (false).
+func marshalClusterAdmissionPolicyWithoutBackgroundAudit(policy *policiesv1.ClusterAdmissionPolicy) string {
+	policy.SetGroupVersionKind(policiesv1.GroupVersion.WithKind("ClusterAdmissionPolicy"))
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policy)
+	Expect(err).ToNot(HaveOccurred())
+	unstructured.RemoveNestedField(obj, "spec", "backgroundAudit")
+	unstructured.RemoveNestedField(obj, "status")
+	data, err := sigsyaml.Marshal(obj)
 	Expect(err).ToNot(HaveOccurred())
 	return string(data)
 }
@@ -122,6 +139,36 @@ var _ = Describe("DefaultsApplierReconciler", func() {
 
 			Expect(createdPS.Labels).To(HaveKeyWithValue(constants.DefaultsManagedByLabelKey, constants.DefaultsManagedByLabelValue))
 			Expect(createdPS.Spec.Image).To(Equal(ps.Spec.Image))
+		})
+	})
+
+	Context("when a policy omits backgroundAudit", func() {
+		It("should apply the CRD default of true instead of the Go zero value", func() {
+			policy := policiesv1.NewClusterAdmissionPolicyFactory().WithName(policyName).WithoutFinalizers().Build()
+			policyYAML := marshalClusterAdmissionPolicyWithoutBackgroundAudit(policy)
+
+			// Guard: the ConfigMap entry must not carry a backgroundAudit field at all,
+			// otherwise this test would not exercise server-side defaulting.
+			Expect(policyYAML).ToNot(ContainSubstring("backgroundAudit"))
+
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: deploymentsNamespace,
+				},
+				Data: map[string]string{
+					"policy": policyYAML,
+				},
+			}
+			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
+
+			createdPolicy := &policiesv1.ClusterAdmissionPolicy{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: policyName}, createdPolicy)
+			}, timeout, pollInterval).Should(Succeed())
+
+			Expect(createdPolicy.Spec.BackgroundAudit).To(BeTrue(),
+				"server-side defaulting should set backgroundAudit=true when the field is omitted")
 		})
 	})
 

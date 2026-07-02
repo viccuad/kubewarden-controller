@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -11,14 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/sets"
+	sigsyaml "sigs.k8s.io/yaml"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	policiesv1 "github.com/kubewarden/adm-controller/api/policies/v1"
 	"github.com/kubewarden/adm-controller/internal/constants"
 )
 
@@ -35,7 +33,6 @@ type DefaultsApplierReconciler struct {
 	Log                  logr.Logger
 	DeploymentsNamespace string
 	ConfigMapName        string
-	decoder              runtime.Decoder
 }
 
 // Reconcile watches the defaults ConfigMap and applies the resources it contains.
@@ -57,34 +54,29 @@ func (r *DefaultsApplierReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	desired := sets.New[resourceKey]()
 
 	for key, yamlData := range cm.Data {
-		obj, gvk, err := r.decoder.Decode([]byte(yamlData), nil, nil)
-		if err != nil {
+		obj := &unstructured.Unstructured{}
+		if err := sigsyaml.Unmarshal([]byte(yamlData), obj); err != nil {
 			log.Error(err, "failed to decode resource from ConfigMap", "key", key)
 			// Don't fail the whole reconciliation for one bad entry
 			continue
 		}
 
-		clientObj, ok := obj.(client.Object)
-		if !ok {
-			log.Error(errors.New("decoded object is not a client.Object"), "skipping resource", "key", key, "gvk", gvk)
-			continue
-		}
-
-		if !isSupportedType(clientObj) {
-			log.Info("Unsupported resource type, skipping", "key", key, "type", fmt.Sprintf("%T", clientObj))
+		gvk := obj.GroupVersionKind()
+		if !isSupportedGVK(gvk) {
+			log.Info("Unsupported resource type, skipping", "key", key, "gvk", gvk.String())
 			continue
 		}
 
 		// Track this resource as desired
 		rk := resourceKey{
 			gvk:       gvk.String(),
-			name:      clientObj.GetName(),
-			namespace: clientObj.GetNamespace(),
+			name:      obj.GetName(),
+			namespace: obj.GetNamespace(),
 		}
 		desired.Insert(rk)
 
 		// Apply the resource with ownership label injected
-		if applyErr := r.applyResource(ctx, clientObj); applyErr != nil {
+		if applyErr := r.applyResource(ctx, obj); applyErr != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to apply resource %s: %w", rk, applyErr)
 		}
 	}
@@ -99,8 +91,6 @@ func (r *DefaultsApplierReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 // SetupWithManager registers the reconciler with the manager.
 func (r *DefaultsApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.decoder = serializer.NewCodecFactory(r.Scheme).UniversalDeserializer()
-
 	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.ConfigMap{}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
@@ -113,94 +103,51 @@ func (r *DefaultsApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-// applyResource creates or updates the resource, managing user-defined metadata from ConfigMap.
-func (r *DefaultsApplierReconciler) applyResource(ctx context.Context, desired client.Object) error {
-	log := r.Log.WithValues("resource", client.ObjectKeyFromObject(desired), "kind", desired.GetObjectKind().GroupVersionKind().Kind)
+// applyResource applies the desired resource using Server-Side Apply. Only the fields present
+// in the ConfigMap YAML are sent, so the API server applies CRD schema defaults (e.g.
+// spec.backgroundAudit=true) for any field the template omits. SSA also manages field ownership:
+// keys removed from the YAML are pruned, and re-applying identical content is a no-op.
+func (r *DefaultsApplierReconciler) applyResource(ctx context.Context, desired *unstructured.Unstructured) error {
+	log := r.Log.WithValues("resource", client.ObjectKeyFromObject(desired), "kind", desired.GetKind())
 
-	// CreateOrPatch GETs the existing object into desired, overwriting the
-	// decoded state. Save a copy so the mutate function can restore everything.
-	desiredCopy, ok := desired.DeepCopyObject().(client.Object)
-	if !ok {
-		return errors.New("failed to cast deep copied object to client.Object")
+	// The status subresource cannot be set via an apply to the main resource; drop it so it
+	// does not end up in our managed field set.
+	unstructured.RemoveNestedField(desired.Object, "status")
+
+	// Stamp the ownership label used by cleanupStale to identify managed resources.
+	labels := desired.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
 	}
+	labels[constants.DefaultsManagedByLabelKey] = constants.DefaultsManagedByLabelValue
+	desired.SetLabels(labels)
 
-	_, err := controllerutil.CreateOrPatch(ctx, r.Client, desired, func() error {
-		copySpec(desiredCopy, desired)
-		applyManagedMetadata(desiredCopy, desired)
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create or patch resource: %w", err)
+	if err := r.Apply(ctx, client.ApplyConfigurationFromUnstructured(desired),
+		client.FieldOwner(constants.DefaultsManagedByLabelValue),
+		client.ForceOwnership,
+	); err != nil {
+		return fmt.Errorf("failed to server-side apply resource: %w", err)
 	}
 
 	log.V(1).Info("Resource applied successfully")
 	return nil
 }
 
-// isSupportedType returns true if the object is a known Kubewarden resource type.
-func isSupportedType(obj client.Object) bool {
-	switch obj.(type) {
-	case *policiesv1.PolicyServer,
-		*policiesv1.ClusterAdmissionPolicy,
-		*policiesv1.AdmissionPolicy,
-		*policiesv1.ClusterAdmissionPolicyGroup,
-		*policiesv1.AdmissionPolicyGroup:
+// isSupportedGVK returns true if the GroupVersionKind is a known Kubewarden resource type.
+func isSupportedGVK(gvk schema.GroupVersionKind) bool {
+	if gvk.Group != constants.KubewardenPoliciesGroup {
+		return false
+	}
+	switch gvk.Kind {
+	case "PolicyServer",
+		"ClusterAdmissionPolicy",
+		"AdmissionPolicy",
+		"ClusterAdmissionPolicyGroup",
+		"AdmissionPolicyGroup":
 		return true
 	default:
 		return false
 	}
-}
-
-// copySpec copies the Spec field from src to dst for all supported resource types.
-func copySpec(src, dst client.Object) {
-	switch d := dst.(type) {
-	case *policiesv1.PolicyServer:
-		if s, ok := src.(*policiesv1.PolicyServer); ok {
-			d.Spec = s.Spec
-		}
-	case *policiesv1.ClusterAdmissionPolicy:
-		if s, ok := src.(*policiesv1.ClusterAdmissionPolicy); ok {
-			d.Spec = s.Spec
-		}
-	case *policiesv1.AdmissionPolicy:
-		if s, ok := src.(*policiesv1.AdmissionPolicy); ok {
-			d.Spec = s.Spec
-		}
-	case *policiesv1.ClusterAdmissionPolicyGroup:
-		if s, ok := src.(*policiesv1.ClusterAdmissionPolicyGroup); ok {
-			d.Spec = s.Spec
-		}
-	case *policiesv1.AdmissionPolicyGroup:
-		if s, ok := src.(*policiesv1.AdmissionPolicyGroup); ok {
-			d.Spec = s.Spec
-		}
-	}
-}
-
-// applyManagedMetadata merges labels and annotations from the ConfigMap YAML into the live
-// object, preserving keys set by other controllers or tools. Previously managed keys that are
-// no longer present in the desired object are removed. The ownership label is always injected.
-func applyManagedMetadata(desired, live client.Object) {
-	// Ensure annotation map exists on live (needed to store label-key tracking).
-	annotations := live.GetAnnotations()
-	if annotations == nil {
-		annotations = make(map[string]string)
-	}
-
-	// Labels: merge desired keys, remove stale managed keys, then stamp the ownership label.
-	labels := live.GetLabels()
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	applyManagedKeys(labels, desired.GetLabels(), annotations, constants.ManagedLabelKeysAnnotation)
-	labels[constants.DefaultsManagedByLabelKey] = constants.DefaultsManagedByLabelValue
-
-	// Annotations: merge desired keys, remove stale managed keys.
-	applyManagedKeys(annotations, desired.GetAnnotations(), annotations, constants.ManagedAnnotationKeysAnnotation)
-
-	live.SetLabels(labels)
-	live.SetAnnotations(annotations)
 }
 
 // cleanupStale removes managed resources that are not in the desired set.
