@@ -81,6 +81,14 @@ func (s *OpenReportStore) DeleteOldReports(ctx context.Context, keptReports sets
 	}, keptReports)
 }
 
+// DeleteAllReports deletes, in a single deletecollection call, all the
+// kubewarden-managed OpenReports Reports in the given namespace. Must only be
+// called when the current scan run wrote no reports in this namespace.
+func (s *OpenReportStore) DeleteAllReports(ctx context.Context, namespace string) error {
+	s.logger.DebugContext(ctx, "Deleting all managed Reports", slog.String("namespace", namespace))
+	return deleteAllManagedReports(ctx, s.client, &openreports.Report{}, namespace)
+}
+
 // CreateOrPatchClusterReport creates or patches a OpenReports ClusterReport.
 //
 //nolint:dupl // Temporary duplicated code with policyreports_store.go, it's planned to be the only implementation in the future.
@@ -131,4 +139,12 @@ func (s *OpenReportStore) DeleteOldClusterReports(ctx context.Context, keptRepor
 	return deleteReportsNotInSet(ctx, s.client, s.logger, &openreports.ClusterReport{}, &client.ListOptions{
 		LabelSelector: labelSelector,
 	}, keptReports)
+}
+
+// DeleteAllClusterReports deletes, in a single deletecollection call, all the
+// kubewarden-managed OpenReports ClusterReports. Must only be called when the
+// current scan run wrote no cluster reports.
+func (s *OpenReportStore) DeleteAllClusterReports(ctx context.Context) error {
+	s.logger.DebugContext(ctx, "Deleting all managed ClusterReports")
+	return deleteAllManagedReports(ctx, s.client, &openreports.ClusterReport{}, "")
 }

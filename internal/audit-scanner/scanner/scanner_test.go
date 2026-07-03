@@ -1787,3 +1787,72 @@ func TestScanClusterWideResourcesWithOpenReport(t *testing.T) {
 	assert.Len(t, clusterPolicyReport.Results, 3)
 	assert.Equal(t, runUID, clusterPolicyReport.GetLabels()[auditConstants.AuditScannerRunUIDLabel])
 }
+
+// TestScanNamespaceWithNoAuditablePoliciesDeletesAllManagedReports covers the
+// bulk-delete fast path: when no policy targets any resource in a namespace,
+// no report can have been written during the scan, so every kubewarden-managed
+// report found for that namespace must be deleted regardless of its
+// run-uid label.
+func TestScanNamespaceWithNoAuditablePoliciesDeletesAllManagedReports(t *testing.T) {
+	namespace1 := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "namespace1",
+			UID:  "namespace1-uid",
+		},
+	}
+
+	// A managed report left over from a previous scan, when a policy still
+	// targeted this namespace.
+	staleReport := testutils.NewPolicyReportFactory().
+		Name("stale-report").Namespace("namespace1").WithAppLabel().Build()
+
+	dynamicClient := dynamicFake.NewSimpleDynamicClient(scheme.Scheme, namespace1)
+	clientset := fake.NewClientset(namespace1)
+	client, err := testutils.NewFakeClient(namespace1, staleReport)
+	require.NoError(t, err)
+
+	logger := slog.Default()
+	k8sClient := k8s.NewClient(dynamicClient, clientset, "kubewarden", nil, pageSize, logger)
+	policiesClient := policies.NewClient(client, "kubewarden", "", logger)
+	policyReportStore := report.NewPolicyReportStore(client, logger)
+
+	config := newTestConfig(policiesClient, k8sClient, policyReportStore)
+	scanner, err := NewScanner(config)
+	require.NoError(t, err)
+
+	runUID := uuid.New().String()
+	err = scanner.ScanNamespace(t.Context(), "namespace1", runUID)
+	require.NoError(t, err)
+
+	err = client.Get(t.Context(), types.NamespacedName{Name: "stale-report", Namespace: "namespace1"}, &wgpolicy.PolicyReport{})
+	require.True(t, apimachineryErrors.IsNotFound(err))
+}
+
+// TestScanClusterWideResourcesWithNoAuditablePoliciesDeletesAllManagedReports
+// is the cluster-scoped counterpart of
+// TestScanNamespaceWithNoAuditablePoliciesDeletesAllManagedReports.
+func TestScanClusterWideResourcesWithNoAuditablePoliciesDeletesAllManagedReports(t *testing.T) {
+	staleClusterReport := testutils.NewClusterPolicyReportFactory().
+		Name("stale-cluster-report").WithAppLabel().Build()
+
+	dynamicClient := dynamicFake.NewSimpleDynamicClient(scheme.Scheme)
+	clientset := fake.NewClientset()
+	client, err := testutils.NewFakeClient(staleClusterReport)
+	require.NoError(t, err)
+
+	logger := slog.Default()
+	k8sClient := k8s.NewClient(dynamicClient, clientset, "kubewarden", nil, pageSize, logger)
+	policiesClient := policies.NewClient(client, "kubewarden", "", logger)
+	policyReportStore := report.NewPolicyReportStore(client, logger)
+
+	config := newTestConfig(policiesClient, k8sClient, policyReportStore)
+	scanner, err := NewScanner(config)
+	require.NoError(t, err)
+
+	runUID := uuid.New().String()
+	err = scanner.ScanClusterWideResources(t.Context(), runUID)
+	require.NoError(t, err)
+
+	err = client.Get(t.Context(), types.NamespacedName{Name: "stale-cluster-report"}, &wgpolicy.ClusterPolicyReport{})
+	require.True(t, apimachineryErrors.IsNotFound(err))
+}

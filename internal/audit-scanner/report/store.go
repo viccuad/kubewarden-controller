@@ -29,11 +29,24 @@ type Store interface {
 	// can wrongly match — and therefore delete — reports that were just patched
 	// with the current run UID.
 	DeleteOldReports(ctx context.Context, keptReports sets.Set[string], namespace string) error
+	// DeleteAllReports deletes, in a single deletecollection call, all the
+	// kubewarden-managed Reports in the given namespace.
+	//
+	// This must only be called when the current scan run wrote no reports in
+	// this namespace (e.g. no policy targets any resource in scope): in that
+	// case every kubewarden-managed report found is necessarily stale, so there
+	// is no read-after-write race to guard against and no need for the
+	// per-item, precondition-guarded delete used by DeleteOldReports.
+	DeleteAllReports(ctx context.Context, namespace string) error
 	CreateOrPatchClusterReport(ctx context.Context, report any) error
 	// DeleteOldClusterReports deletes all the kubewarden-managed ClusterReports
 	// whose name is not present in keptReports. See DeleteOldReports for the
 	// rationale behind deleting by name instead of by label selector.
 	DeleteOldClusterReports(ctx context.Context, keptReports sets.Set[string]) error
+	// DeleteAllClusterReports deletes, in a single deletecollection call, all
+	// the kubewarden-managed ClusterReports. See DeleteAllReports for when it
+	// is safe to call this instead of DeleteOldClusterReports.
+	DeleteAllClusterReports(ctx context.Context) error
 }
 
 func NewReportStoreOfKind(kind CrdKind, client client.Client, logger *slog.Logger) Store {
@@ -51,6 +64,29 @@ func managedByKubewardenSelector() (labels.Selector, error) {
 		return nil, fmt.Errorf("failed to parse label selector: %w", err)
 	}
 	return selector, nil
+}
+
+// deleteAllManagedReports deletes, in a single deletecollection call, all the
+// kubewarden-managed reports of the kind represented by sample, in the given
+// namespace (ignored for cluster-scoped kinds).
+//
+// Callers must only use this when the current scan run wrote no reports in
+// scope, so every managed report returned by the label selector is
+// necessarily stale: there is no write to race against, unlike
+// deleteReportsNotInSet.
+func deleteAllManagedReports(ctx context.Context, c client.Client, sample client.Object, namespace string) error {
+	labelSelector, err := managedByKubewardenSelector()
+	if err != nil {
+		return err
+	}
+
+	if deleteErr := c.DeleteAllOf(ctx, sample, &client.DeleteAllOfOptions{ListOptions: client.ListOptions{
+		LabelSelector: labelSelector,
+		Namespace:     namespace,
+	}}); deleteErr != nil {
+		return fmt.Errorf("failed to delete reports: %w", deleteErr)
+	}
+	return nil
 }
 
 // deleteReportsNotInSet lists the kubewarden-managed reports of the kind

@@ -301,3 +301,54 @@ func TestDeleteOldClusterReportsKeepsReportWrittenThisRunWithStaleLabel(t *testi
 	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "stale-report"}, &openreports.ClusterReport{})
 	require.True(t, apierrors.IsNotFound(err))
 }
+
+// TestDeleteAllReports covers the bulk-delete fast path, used when the scan
+// wrote no reports in a namespace (e.g. no auditable policies target it): all
+// kubewarden-managed reports in that namespace are deleted unconditionally,
+// while unmanaged reports and reports in other namespaces are preserved.
+func TestDeleteAllReports(t *testing.T) {
+	managedDefault := testutils.NewPolicyReportFactory().
+		Name("managed-default").Namespace("default").WithAppLabel().BuildOpenReports()
+	unmanagedDefault := testutils.NewPolicyReportFactory().
+		Name("unmanaged-default").Namespace("default").BuildOpenReports()
+	managedOther := testutils.NewPolicyReportFactory().
+		Name("managed-other").Namespace("other").WithAppLabel().BuildOpenReports()
+
+	fakeClient, err := testutils.NewFakeClient(managedDefault, unmanagedDefault, managedOther)
+	require.NoError(t, err)
+	store := NewOpenReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteAllReports(t.Context(), "default")
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "managed-default", Namespace: "default"}, &openreports.Report{})
+	require.True(t, apierrors.IsNotFound(err))
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "unmanaged-default", Namespace: "default"}, &openreports.Report{})
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "managed-other", Namespace: "other"}, &openreports.Report{})
+	require.NoError(t, err)
+}
+
+// TestDeleteAllClusterReports is the cluster-scoped counterpart of
+// TestDeleteAllReports.
+func TestDeleteAllClusterReports(t *testing.T) {
+	managed := testutils.NewClusterPolicyReportFactory().
+		Name("managed").WithAppLabel().BuildOpenReports()
+	unmanaged := testutils.NewClusterPolicyReportFactory().
+		Name("unmanaged").BuildOpenReports()
+
+	fakeClient, err := testutils.NewFakeClient(managed, unmanaged)
+	require.NoError(t, err)
+	store := NewOpenReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteAllClusterReports(t.Context())
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "managed"}, &openreports.ClusterReport{})
+	require.True(t, apierrors.IsNotFound(err))
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "unmanaged"}, &openreports.ClusterReport{})
+	require.NoError(t, err)
+}

@@ -164,9 +164,6 @@ func (s *Scanner) ScanNamespace(ctx context.Context, nsName, runUID string) erro
 		slog.String("namespace", nsName),
 		slog.String("RunUID", runUID),
 		slog.Int("parallel-resources-audits", s.parallelResourcesAudits))
-	semaphore := semaphore.NewWeighted(int64(s.parallelResourcesAudits))
-	var workers sync.WaitGroup
-	keptReports := newReportNameSet()
 
 	namespace, err := s.k8sClient.GetNamespace(ctx, nsName)
 	if err != nil {
@@ -182,6 +179,26 @@ func (s *Scanner) ScanNamespace(ctx context.Context, nsName, runUID string) erro
 		slog.Int("policies-to-evaluate", policies.PolicyNum),
 		slog.Int("policies-skipped", policies.SkippedNum),
 		slog.Int("policies-errored", policies.ErroredNum))
+
+	if len(policies.PoliciesByGVR) == 0 {
+		// No policy targets any resource in this namespace, so no report can
+		// have been written during this run: every kubewarden-managed report
+		// found is necessarily stale and can be deleted in a single call,
+		// instead of listing and comparing against an (empty) write-set.
+		s.logger.InfoContext(ctx, "no auditable policies for namespace, deleting all managed reports",
+			slog.String("namespace", nsName))
+		if deleteErr := s.reportStore.DeleteAllReports(ctx, nsName); deleteErr != nil {
+			s.logger.ErrorContext(ctx, "error deleting old reports",
+				slog.String("error", deleteErr.Error()),
+				slog.String("RunUID", runUID))
+		}
+		s.logger.InfoContext(ctx, "Namespaced resources scan finished")
+		return nil
+	}
+
+	semaphore := semaphore.NewWeighted(int64(s.parallelResourcesAudits))
+	var workers sync.WaitGroup
+	keptReports := newReportNameSet()
 
 	for gvr, pols := range policies.PoliciesByGVR {
 		pager := s.k8sClient.GetResources(gvr, nsName)
@@ -283,10 +300,6 @@ func (s *Scanner) ScanAllNamespaces(ctx context.Context, runUID string) error {
 func (s *Scanner) ScanClusterWideResources(ctx context.Context, runUID string) error {
 	s.logger.InfoContext(ctx, "clusterwide resources scan started", slog.String("RunUID", runUID))
 
-	semaphore := semaphore.NewWeighted(int64(s.parallelResourcesAudits))
-	var workers sync.WaitGroup
-	keptReports := newReportNameSet()
-
 	policies, err := s.policiesClient.GetClusterWidePolicies(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to obtain cluster auditable policies: %w", err)
@@ -297,6 +310,26 @@ func (s *Scanner) ScanClusterWideResources(ctx context.Context, runUID string) e
 		slog.Int("policies-skipped", policies.SkippedNum),
 		slog.Int("policies-errored", policies.ErroredNum),
 		slog.Int("parallel-resources-audits", s.parallelResourcesAudits))
+
+	if len(policies.PoliciesByGVR) == 0 {
+		// No cluster-wide policy targets any resource, so no cluster report can
+		// have been written during this run: every kubewarden-managed
+		// ClusterReport found is necessarily stale and can be deleted in a
+		// single call, instead of listing and comparing against an (empty)
+		// write-set.
+		s.logger.InfoContext(ctx, "no cluster-wide auditable policies, deleting all managed ClusterReports")
+		if deleteErr := s.reportStore.DeleteAllClusterReports(ctx); deleteErr != nil {
+			s.logger.ErrorContext(ctx, "error deleting old ClusterReports",
+				slog.String("error", deleteErr.Error()),
+				slog.String("RunUID", runUID))
+		}
+		s.logger.InfoContext(ctx, "Cluster-wide resources scan finished")
+		return nil
+	}
+
+	semaphore := semaphore.NewWeighted(int64(s.parallelResourcesAudits))
+	var workers sync.WaitGroup
+	keptReports := newReportNameSet()
 
 	for gvr, pols := range policies.PoliciesByGVR {
 		pager := s.k8sClient.GetResources(gvr, "")
