@@ -75,7 +75,7 @@ func (s *OpenReportStore) DeleteOldReports(ctx context.Context, keptReports sets
 		slog.String("namespace", namespace),
 		slog.Int("kept-reports", keptReports.Len()))
 
-	return deleteReportsNotInSet(ctx, s.client, s.logger, &openreports.ReportList{}, &client.ListOptions{
+	return deleteReportsNotInSet(ctx, s.client, s.logger, &openreports.Report{}, &client.ListOptions{
 		LabelSelector: labelSelector,
 		Namespace:     namespace,
 	}, keptReports)
@@ -128,7 +128,7 @@ func (s *OpenReportStore) DeleteOldClusterReports(ctx context.Context, keptRepor
 	s.logger.DebugContext(ctx, "Deleting old ClusterReports",
 		slog.Int("kept-reports", keptReports.Len()))
 
-	return deleteReportsNotInSet(ctx, s.client, s.logger, &openreports.ClusterReportList{}, &client.ListOptions{
+	return deleteReportsNotInSet(ctx, s.client, s.logger, &openreports.ClusterReport{}, &client.ListOptions{
 		LabelSelector: labelSelector,
 	}, keptReports)
 }

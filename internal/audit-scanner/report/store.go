@@ -7,11 +7,12 @@ import (
 	"log/slog"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 // Store is an interface to abstract the storage of reports. It's agnostic to the
@@ -52,10 +53,15 @@ func managedByKubewardenSelector() (labels.Selector, error) {
 	return selector, nil
 }
 
-// deleteReportsNotInSet lists the kubewarden-managed reports of the kind held by
-// list (matching listOpts) and deletes those whose name is not present in
-// keptReports, which holds the names of the reports created or patched during
-// the current scan run.
+// deleteReportsNotInSet lists the kubewarden-managed reports of the kind
+// represented by sample (matching listOpts) and deletes those whose name is
+// not present in keptReports, which holds the names of the reports created or
+// patched during the current scan run.
+//
+// The list only fetches object metadata (a PartialObjectMetadataList), not the
+// full report body (labels, scope and results): GC only needs name, UID,
+// ResourceVersion and namespace, so this avoids transferring and decoding the
+// full report payload for every managed report on every scan.
 //
 // Each report is deleted with UID and ResourceVersion preconditions (optimistic
 // concurrency), so a report that was concurrently re-created or updated (for
@@ -65,26 +71,31 @@ func deleteReportsNotInSet(
 	ctx context.Context,
 	c client.Client,
 	logger *slog.Logger,
-	list client.ObjectList,
+	sample client.Object,
 	listOpts *client.ListOptions,
 	keptReports sets.Set[string],
 ) error {
-	if err := c.List(ctx, list, listOpts); err != nil {
-		return fmt.Errorf("failed to list reports: %w", err)
-	}
-
-	items, err := apimeta.ExtractList(list)
+	gvk, err := apiutil.GVKForObject(sample, c.Scheme())
 	if err != nil {
-		return fmt.Errorf("failed to extract report list: %w", err)
+		return fmt.Errorf("failed to get GroupVersionKind for %T: %w", sample, err)
+	}
+	listGVK := gvk
+	listGVK.Kind += "List"
+
+	list := &metav1.PartialObjectMetadataList{}
+	list.SetGroupVersionKind(listGVK)
+
+	if listErr := c.List(ctx, list, listOpts); listErr != nil {
+		return fmt.Errorf("failed to list reports: %w", listErr)
 	}
 
 	var errs []error
-	for _, item := range items {
-		report, ok := item.(client.Object)
-		if !ok {
-			errs = append(errs, fmt.Errorf("expected client.Object, got %T", item))
-			continue
-		}
+	for i := range list.Items {
+		report := &list.Items[i]
+		// The API server sets Kind/APIVersion on each returned item, but set it
+		// explicitly too so Delete knows which resource to target regardless.
+		report.SetGroupVersionKind(gvk)
+
 		if keptReports.Has(report.GetName()) {
 			continue
 		}
