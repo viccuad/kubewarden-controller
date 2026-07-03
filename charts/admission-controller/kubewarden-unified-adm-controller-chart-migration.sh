@@ -899,10 +899,11 @@ phase_upgrade_unified() {
 #------------------------------------------------------------------------------
 # Phase 7: Post-migration verification
 #------------------------------------------------------------------------------
-post_migration_verification() {
+phase_post_migration_verification() {
   step "Post-migration verification"
 
   # Verify CRD ownership.
+  local release_name="$UNIFIED_RELEASE_NAME"
   info "verifying CRDs are owned by release '$release_name'"
   local rel
   for crd in "${KW_CRDS[@]}"; do
