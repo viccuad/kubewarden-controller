@@ -114,6 +114,13 @@ func (r *DefaultsApplierReconciler) applyResource(ctx context.Context, desired *
 	// does not end up in our managed field set.
 	unstructured.RemoveNestedField(desired.Object, "status")
 
+	// When adopting a resource that was Helm-managed before the 1.37 chart unification,
+	// strip the Helm bookkeeping annotations from the live object. This must happen
+	// before the server-side Apply below, while the live object still reports Helm ownership.
+	if err := r.stripHelmBookkeeping(ctx, desired); err != nil {
+		return err
+	}
+
 	// Stamp the ownership label used by cleanupStale to identify managed resources.
 	labels := desired.GetLabels()
 	if labels == nil {
@@ -130,6 +137,66 @@ func (r *DefaultsApplierReconciler) applyResource(ctx context.Context, desired *
 	}
 
 	log.V(1).Info("Resource applied successfully")
+	return nil
+}
+
+// stripHelmBookkeeping removes Helm bookkeeping annotations from the live resource when it
+// was previously Helm-managed and the desired state explicitly claims controller ownership.
+//
+// This handles the 1.37 migration where the default PolicyServer and recommended policies
+// moved from Helm ownership to controller ownership. Requiring both conditions avoids
+// stripping annotations from resources that carry managed-by: Helm for unrelated reasons.
+//
+// The Helm annotations cannot be removed by the server-side apply in applyResource: they are
+// owned by Helm's field manager and are absent from our applied configuration,
+// so the API server leaves them untouched. A dedicated merge patch is required.
+func (r *DefaultsApplierReconciler) stripHelmBookkeeping(ctx context.Context, desired *unstructured.Unstructured) error {
+	if desired.GetLabels()[constants.ManagedByKey] != constants.ManagedByKeyLabelValue {
+		// exit if we are not taking ownership
+		return nil
+	}
+
+	live := &unstructured.Unstructured{}
+	live.SetGroupVersionKind(desired.GroupVersionKind())
+	if err := r.Get(ctx, client.ObjectKeyFromObject(desired), live); err != nil {
+		if apierrors.IsNotFound(err) {
+			// fresh resource: nothing to strip
+			return nil
+		}
+		return fmt.Errorf("failed to get live resource: %w", err)
+	}
+
+	if live.GetLabels()[constants.ManagedByKey] != "Helm" {
+		// exit if it wasn't previously owned by Helm
+		return nil
+	}
+
+	orig := live.DeepCopy()
+	annotations := live.GetAnnotations()
+	changed := false
+	helmBookkeepingAnnotations := []string{
+		constants.HelmResourcePolicy,
+		constants.HelmMetaReleaseName,
+		constants.HelmMetaReleaseNamespace,
+	}
+	for _, key := range helmBookkeepingAnnotations {
+		if _, found := annotations[key]; found {
+			delete(annotations, key)
+			changed = true
+		}
+	}
+	if !changed {
+		// exit if there was no annotations to remove
+		return nil
+	}
+	live.SetAnnotations(annotations)
+
+	if err := r.Patch(ctx, live, client.MergeFrom(orig)); err != nil {
+		return fmt.Errorf("failed to strip Helm annotations: %w", err)
+	}
+
+	r.Log.Info("Stripped Helm bookkeeping annotations from adopted resource",
+		"resource", client.ObjectKeyFromObject(live), "kind", live.GetKind())
 	return nil
 }
 

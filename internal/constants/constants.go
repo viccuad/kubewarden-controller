@@ -44,7 +44,15 @@ const (
 	ComponentLabelKey               = "app.kubernetes.io/component"
 	PartOfLabelKey                  = "app.kubernetes.io/part-of"
 	PartOfLabelValue                = "kubewarden"
-	ManagedByKey                    = "app.kubernetes.io/managed-by"
+
+	ManagedByKey = "app.kubernetes.io/managed-by"
+	// ManagedByKeyLabelValue is set via Helm chart templates.
+	ManagedByKeyLabelValue = "kubewarden-controller"
+
+	// HelmResourcePolicy and others re Helm annotations.
+	HelmResourcePolicy       = "helm.sh/resource-policy"
+	HelmMetaReleaseName      = "meta.helm.sh/release-name"
+	HelmMetaReleaseNamespace = "meta.helm.sh/release-namespace"
 
 	// DefaultsManagedByLabelKey is the label key for resources managed by DefaultsApplier.
 	DefaultsManagedByLabelKey = "kubewarden.io/managed-by"

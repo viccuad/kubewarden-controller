@@ -279,6 +279,57 @@ var _ = Describe("DefaultsApplierReconciler", func() {
 		})
 	})
 
+	Context("when a previously Helm-managed PolicyServer is adopted by the controller", func() {
+		It("should remove Helm annotations and update the managed-by label on reconcile", func() {
+			// Simulate a PolicyServer that was created by Helm before the 1.37 migration.
+			// It carries Helm bookkeeping annotations and managed-by label.
+			helmPS := policiesv1.NewPolicyServerFactory().WithName(policyServerName).WithoutFinalizers().Build()
+			helmPS.Labels = map[string]string{
+				"app.kubernetes.io/managed-by": "Helm",
+			}
+			helmPS.Annotations = map[string]string{
+				constants.HelmResourcePolicy:       "keep",
+				constants.HelmMetaReleaseName:      "kubewarden-defaults",
+				constants.HelmMetaReleaseNamespace: "kubewarden",
+			}
+			Expect(k8sClient.Create(ctx, helmPS)).To(Succeed())
+
+			// Now the ConfigMap is created, triggering the controller to adopt the resource.
+			// Mirror the behavior of the chart: the ConfigMap YAML sets  `app.kubernetes.io/managed-by`
+			// to `kubewarden-controller`, so when we reconcile, applyManagedKeys overwrites the
+			// Helm value during the same reconcile that strips the Helm annotations.
+			ps := policiesv1.NewPolicyServerFactory().WithName(policyServerName).WithoutFinalizers().Build()
+			ps.Labels = map[string]string{
+				constants.ManagedByKey: constants.ManagedByKeyLabelValue,
+			}
+			policyServerYAML := marshalPolicyServer(ps)
+
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: deploymentsNamespace,
+				},
+				Data: map[string]string{
+					"policyserver-default": policyServerYAML,
+				},
+			}
+			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
+
+			adoptedPS := &policiesv1.PolicyServer{}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: policyServerName}, adoptedPS)).To(Succeed())
+				// Helm annotations must be gone.
+				g.Expect(adoptedPS.Annotations).NotTo(HaveKey(constants.HelmResourcePolicy))
+				g.Expect(adoptedPS.Annotations).NotTo(HaveKey(constants.HelmMetaReleaseName))
+				g.Expect(adoptedPS.Annotations).NotTo(HaveKey(constants.HelmMetaReleaseNamespace))
+				// managed-by label must be updated to the controller value.
+				g.Expect(adoptedPS.Labels).To(HaveKeyWithValue(constants.ManagedByKey, constants.ManagedByKeyLabelValue))
+				// Ownership label must be stamped.
+				g.Expect(adoptedPS.Labels).To(HaveKeyWithValue(constants.DefaultsManagedByLabelKey, constants.DefaultsManagedByLabelValue))
+			}, timeout, pollInterval).Should(Succeed())
+		})
+	})
+
 	Context("when ConfigMap has malformed YAML", func() {
 		It("should skip the malformed entry and continue with others", func() {
 			ps := policiesv1.NewPolicyServerFactory().WithName(policyServerName).WithoutFinalizers().Build()
