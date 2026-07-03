@@ -124,7 +124,9 @@ There will be a ClusterPolicyReport with results for cluster-wide resources.`,
 			reportStore := report.NewReportStoreOfKind(reportKind, client, logger)
 
 			if reportKind == report.ReportKindOpenReport {
-				if err = report.DeleteAllLegacyPolicyReports(context.Background(), client, logger); err != nil {
+				if disableStore {
+					logger.Debug("store disabled, skipping deletion of legacy wgpolicyk8s.io PolicyReports")
+				} else if err = report.DeleteAllLegacyPolicyReports(context.Background(), client, logger); err != nil {
 					logger.Warn("Failed to delete legacy wgpolicyk8s.io PolicyReports, continuing", "error", err)
 				}
 			}
@@ -174,7 +176,7 @@ There will be a ClusterPolicyReport with results for cluster-wide resources.`,
 	rootCmd.Flags().StringP("client-cert", "", "", "File path to client cert in PEM format used for mTLS communication with the PolicyServer endpoints")
 	rootCmd.Flags().StringP("client-key", "", "", "File path to client key in PEM format used for mTLS communication with the PolicyServer endpoints")
 	rootCmd.MarkFlagsRequiredTogether("client-cert", "client-key")
-	rootCmd.Flags().BoolVar(&disableStore, "disable-store", false, "disable storing the results in the k8s cluster")
+	rootCmd.Flags().BoolVar(&disableStore, "disable-store", false, "do not create, update or delete (Cluster)Reports in the cluster; scan results are only computed in memory (use with --output-scan)")
 	rootCmd.Flags().IntP("parallel-namespaces", "", defaultParallelNamespaces, "number of Namespaces to scan in parallel")
 	rootCmd.Flags().IntP("parallel-resources", "", defaultParallelResources, "number of resources to scan in parallel")
 	rootCmd.Flags().IntP("parallel-policies", "", defaultParallelPolicies, "number of policies to evaluate for a given resource in parallel")
