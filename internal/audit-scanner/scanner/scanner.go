@@ -185,13 +185,7 @@ func (s *Scanner) ScanNamespace(ctx context.Context, nsName, runUID string) erro
 		// have been written during this run: every kubewarden-managed report
 		// found is necessarily stale and can be deleted in a single call,
 		// instead of listing and comparing against an (empty) write-set.
-		s.logger.InfoContext(ctx, "no auditable policies for namespace, deleting all managed reports",
-			slog.String("namespace", nsName))
-		if deleteErr := s.reportStore.DeleteAllReports(ctx, nsName); deleteErr != nil {
-			s.logger.ErrorContext(ctx, "error deleting old reports",
-				slog.String("error", deleteErr.Error()),
-				slog.String("RunUID", runUID))
-		}
+		s.deleteAllNamespaceReports(ctx, nsName, runUID)
 		s.logger.InfoContext(ctx, "Namespaced resources scan finished")
 		return nil
 	}
@@ -241,13 +235,43 @@ func (s *Scanner) ScanNamespace(ctx context.Context, nsName, runUID string) erro
 	}
 	workers.Wait()
 
+	s.deleteStaleNamespaceReports(ctx, nsName, runUID, keptReports)
+	s.logger.InfoContext(ctx, "Namespaced resources scan finished")
+	return nil
+}
+
+// deleteAllNamespaceReports deletes every kubewarden-managed report in
+// nsName, unless the store is disabled. Used when no policy targets any
+// resource in the namespace, so no report can have been written this run and
+// every managed report found is necessarily stale.
+func (s *Scanner) deleteAllNamespaceReports(ctx context.Context, nsName, runUID string) {
+	if s.disableStore {
+		s.logger.InfoContext(ctx, "store disabled, skipping deletion of managed reports",
+			slog.String("namespace", nsName))
+		return
+	}
+	s.logger.InfoContext(ctx, "no auditable policies for namespace, deleting all managed reports",
+		slog.String("namespace", nsName))
+	if deleteErr := s.reportStore.DeleteAllReports(ctx, nsName); deleteErr != nil {
+		s.logger.ErrorContext(ctx, "error deleting old reports",
+			slog.String("error", deleteErr.Error()),
+			slog.String("RunUID", runUID))
+	}
+}
+
+// deleteStaleNamespaceReports deletes the kubewarden-managed reports in
+// nsName that are not part of keptReports, unless the store is disabled.
+func (s *Scanner) deleteStaleNamespaceReports(ctx context.Context, nsName, runUID string, keptReports *reportNameSet) {
+	if s.disableStore {
+		s.logger.InfoContext(ctx, "store disabled, skipping deletion of managed reports",
+			slog.String("namespace", nsName))
+		return
+	}
 	if deleteErr := s.reportStore.DeleteOldReports(ctx, keptReports.snapshot(), nsName); deleteErr != nil {
 		s.logger.ErrorContext(ctx, "error deleting old reports",
 			slog.String("error", deleteErr.Error()),
 			slog.String("RunUID", runUID))
 	}
-	s.logger.InfoContext(ctx, "Namespaced resources scan finished")
-	return nil
 }
 
 // ScanAllNamespaces scans resources for all namespaces, except the ones in the skipped list.
@@ -317,12 +341,7 @@ func (s *Scanner) ScanClusterWideResources(ctx context.Context, runUID string) e
 		// ClusterReport found is necessarily stale and can be deleted in a
 		// single call, instead of listing and comparing against an (empty)
 		// write-set.
-		s.logger.InfoContext(ctx, "no cluster-wide auditable policies, deleting all managed ClusterReports")
-		if deleteErr := s.reportStore.DeleteAllClusterReports(ctx); deleteErr != nil {
-			s.logger.ErrorContext(ctx, "error deleting old ClusterReports",
-				slog.String("error", deleteErr.Error()),
-				slog.String("RunUID", runUID))
-		}
+		s.deleteAllClusterReports(ctx, runUID)
 		s.logger.InfoContext(ctx, "Cluster-wide resources scan finished")
 		return nil
 	}
@@ -368,13 +387,40 @@ func (s *Scanner) ScanClusterWideResources(ctx context.Context, runUID string) e
 
 	workers.Wait()
 
+	s.deleteStaleClusterReports(ctx, runUID, keptReports)
+	s.logger.InfoContext(ctx, "Cluster-wide resources scan finished")
+	return nil
+}
+
+// deleteAllClusterReports deletes every kubewarden-managed ClusterReport,
+// unless the store is disabled. Used when no cluster-wide policy targets any
+// resource, so no report can have been written this run and every managed
+// report found is necessarily stale.
+func (s *Scanner) deleteAllClusterReports(ctx context.Context, runUID string) {
+	if s.disableStore {
+		s.logger.InfoContext(ctx, "store disabled, skipping deletion of managed ClusterReports")
+		return
+	}
+	s.logger.InfoContext(ctx, "no cluster-wide auditable policies, deleting all managed ClusterReports")
+	if deleteErr := s.reportStore.DeleteAllClusterReports(ctx); deleteErr != nil {
+		s.logger.ErrorContext(ctx, "error deleting old ClusterReports",
+			slog.String("error", deleteErr.Error()),
+			slog.String("RunUID", runUID))
+	}
+}
+
+// deleteStaleClusterReports deletes the kubewarden-managed ClusterReports
+// that are not part of keptReports, unless the store is disabled.
+func (s *Scanner) deleteStaleClusterReports(ctx context.Context, runUID string, keptReports *reportNameSet) {
+	if s.disableStore {
+		s.logger.InfoContext(ctx, "store disabled, skipping deletion of managed ClusterReports")
+		return
+	}
 	if deleteErr := s.reportStore.DeleteOldClusterReports(ctx, keptReports.snapshot()); deleteErr != nil {
 		s.logger.ErrorContext(ctx, "error deleting old ClusterReports",
 			slog.String("error", deleteErr.Error()),
 			slog.String("RunUID", runUID))
 	}
-	s.logger.InfoContext(ctx, "Cluster-wide resources scan finished")
-	return nil
 }
 
 type policyAuditResult struct {

@@ -357,7 +357,9 @@ auditScanner:
   logLevel: info
   # Output result of scan to stdout in JSON upon completion
   outputScan: false
-  # Configures whether a (Cluster)PolicyReport is stored in Kubernetes/etcd or not
+  # Configures whether (Cluster)Reports are created, updated or deleted in
+  # Kubernetes/etcd. When true, no (Cluster)Report is created, updated, or
+  # deleted; existing reports are left untouched.
   disableStore: false
   # Configures the number of Namespaces to be audited in parallel
   parallelNamespaces: 1

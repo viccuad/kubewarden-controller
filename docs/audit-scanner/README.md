@@ -23,7 +23,7 @@ audit-scanner [flags]
 
 Flags:
   -c, --cluster                       scan cluster wide resources
-      --disable-store                 disable storing the results in the k8s cluster
+      --disable-store                 do not create, update or delete (Cluster)Reports in the cluster; scan results are only computed in memory (use with --output-scan)
   -f, --extra-ca string               File path to CA cert in PEM format of PolicyServer endpoints
   -h, --help                          help for audit-scanner
   -i, --ignore-namespaces strings     comma separated list of namespace names to be skipped from scan. This flag can be repeated
@@ -53,7 +53,7 @@ Scan a single namespace:
 audit-scanner  --kubewarden-namespace kubewarden --namespace default
 ```
 
-Disable storing the results in etcd and print the reports to stdout in JSON format:
+Disable storing the results in etcd (and skip deleting any existing reports) while printing the reports to stdout in JSON format:
 
 ```shell
 audit-scanner  --kubewarden-namespace kubewarden --disable-store --output-scan
