@@ -10,10 +10,12 @@ import (
 	testutils "github.com/kubewarden/adm-controller/internal/audit-scanner/testutils"
 	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	wgpolicy "sigs.k8s.io/wg-policy-prototypes/policy-report/pkg/api/wgpolicyk8s.io/v1alpha2"
 )
@@ -190,7 +192,7 @@ func TestDeletePolicyReport(t *testing.T) {
 	logger := slog.Default()
 	store := NewPolicyReportStore(fakeClient, logger)
 
-	err = store.DeleteOldReports(t.Context(), "new-uid", "default")
+	err = store.DeleteOldReports(t.Context(), sets.New("new-report"), "default")
 	require.NoError(t, err)
 
 	storedPolicyReportList := &wgpolicy.PolicyReportList{}
@@ -225,7 +227,7 @@ func TestDeleteClusterPolicyReport(t *testing.T) {
 	logger := slog.Default()
 	store := NewPolicyReportStore(fakeClient, logger)
 
-	err = store.DeleteOldClusterReports(t.Context(), "new-uid")
+	err = store.DeleteOldClusterReports(t.Context(), sets.New("new-report"))
 	require.NoError(t, err)
 
 	storedPolicyReportList := &wgpolicy.ClusterPolicyReportList{}
@@ -244,4 +246,101 @@ func TestDeleteClusterPolicyReport(t *testing.T) {
 	err = fakeClient.List(t.Context(), storedPolicyReportList, &client.ListOptions{LabelSelector: labelSelector})
 	require.NoError(t, err)
 	require.Len(t, storedPolicyReportList.Items, 1)
+}
+
+// TestDeletePolicyReportKeepsReportWrittenThisRunWithStaleLabel is the regression
+// test for the read-after-write race, for the deprecated wgpolicy PolicyReport
+// store. See the equivalent test in openreports_store_test.go for details.
+func TestDeletePolicyReportKeepsReportWrittenThisRunWithStaleLabel(t *testing.T) {
+	keptWithStaleLabel := testutils.NewPolicyReportFactory().
+		Name("kept-report").Namespace("default").RunUID("stale-uid").WithAppLabel().Build()
+	staleReport := testutils.NewPolicyReportFactory().
+		Name("stale-report").Namespace("default").RunUID("stale-uid").WithAppLabel().Build()
+
+	fakeClient, err := testutils.NewFakeClient(keptWithStaleLabel, staleReport)
+	require.NoError(t, err)
+	store := NewPolicyReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteOldReports(t.Context(), sets.New("kept-report"), "default")
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "kept-report", Namespace: "default"}, &wgpolicy.PolicyReport{})
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "stale-report", Namespace: "default"}, &wgpolicy.PolicyReport{})
+	require.True(t, apierrors.IsNotFound(err))
+}
+
+// TestDeleteClusterPolicyReportKeepsReportWrittenThisRunWithStaleLabel is the
+// cluster-scoped counterpart of the regression test above.
+func TestDeleteClusterPolicyReportKeepsReportWrittenThisRunWithStaleLabel(t *testing.T) {
+	keptWithStaleLabel := testutils.NewClusterPolicyReportFactory().
+		Name("kept-report").RunUID("stale-uid").WithAppLabel().Build()
+	staleReport := testutils.NewClusterPolicyReportFactory().
+		Name("stale-report").RunUID("stale-uid").WithAppLabel().Build()
+
+	fakeClient, err := testutils.NewFakeClient(keptWithStaleLabel, staleReport)
+	require.NoError(t, err)
+	store := NewPolicyReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteOldClusterReports(t.Context(), sets.New("kept-report"))
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "kept-report"}, &wgpolicy.ClusterPolicyReport{})
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "stale-report"}, &wgpolicy.ClusterPolicyReport{})
+	require.True(t, apierrors.IsNotFound(err))
+}
+
+// TestDeleteAllPolicyReports covers the bulk-delete fast path, used when the
+// scan wrote no reports in a namespace (e.g. no auditable policies target it):
+// all kubewarden-managed reports in that namespace are deleted
+// unconditionally, while unmanaged reports and reports in other namespaces are
+// preserved.
+func TestDeleteAllPolicyReports(t *testing.T) {
+	managedDefault := testutils.NewPolicyReportFactory().
+		Name("managed-default").Namespace("default").WithAppLabel().Build()
+	unmanagedDefault := testutils.NewPolicyReportFactory().
+		Name("unmanaged-default").Namespace("default").Build()
+	managedOther := testutils.NewPolicyReportFactory().
+		Name("managed-other").Namespace("other").WithAppLabel().Build()
+
+	fakeClient, err := testutils.NewFakeClient(managedDefault, unmanagedDefault, managedOther)
+	require.NoError(t, err)
+	store := NewPolicyReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteAllReports(t.Context(), "default")
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "managed-default", Namespace: "default"}, &wgpolicy.PolicyReport{})
+	require.True(t, apierrors.IsNotFound(err))
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "unmanaged-default", Namespace: "default"}, &wgpolicy.PolicyReport{})
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "managed-other", Namespace: "other"}, &wgpolicy.PolicyReport{})
+	require.NoError(t, err)
+}
+
+// TestDeleteAllClusterPolicyReports is the cluster-scoped counterpart of
+// TestDeleteAllPolicyReports.
+func TestDeleteAllClusterPolicyReports(t *testing.T) {
+	managed := testutils.NewClusterPolicyReportFactory().
+		Name("managed").WithAppLabel().Build()
+	unmanaged := testutils.NewClusterPolicyReportFactory().
+		Name("unmanaged").Build()
+
+	fakeClient, err := testutils.NewFakeClient(managed, unmanaged)
+	require.NoError(t, err)
+	store := NewPolicyReportStore(fakeClient, slog.Default())
+
+	err = store.DeleteAllClusterReports(t.Context())
+	require.NoError(t, err)
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "managed"}, &wgpolicy.ClusterPolicyReport{})
+	require.True(t, apierrors.IsNotFound(err))
+
+	err = fakeClient.Get(t.Context(), types.NamespacedName{Name: "unmanaged"}, &wgpolicy.ClusterPolicyReport{})
+	require.NoError(t, err)
 }
