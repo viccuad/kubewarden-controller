@@ -269,6 +269,19 @@ var _ = Describe("PolicyServer controller", func() {
 			})))
 		})
 
+		It("should create the policy server configmap with the same labels as the other policy server resources", func() {
+			policyServer := policiesv1.NewPolicyServerFactory().WithName(policyServerName).Build()
+			createPolicyServerAndWaitForItsService(ctx, policyServer)
+
+			configmap, err := getTestPolicyServerConfigMap(ctx, policyServerName)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(configmap.Labels).To(HaveKeyWithValue(constants.PolicyServerLabelKey, policyServerName))
+			for k, v := range policyServer.CommonLabels() {
+				Expect(configmap.Labels).To(HaveKeyWithValue(k, v))
+			}
+		})
+
 		It("should create the policy server configmap with the assigned policies", func() {
 			timeoutEvalSeconds := int32(5)
 
