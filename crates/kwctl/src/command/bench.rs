@@ -37,6 +37,16 @@ pub(crate) async fn pull_and_bench(
     let (mut evaluator, callback_handler, shutdown_channel_tx) =
         Evaluator::new(policy_definition, pull_and_run_settings, local_data).await?;
 
+    // When host capabilities are being replayed from a recorded session,
+    // grab a handle that lets us rewind the session back to its first
+    // exchange. This must happen before the callback handler is moved into
+    // the spawned task below. A recorded session is expected to contain
+    // exactly the exchanges of a single evaluation; resetting before every
+    // benchmark iteration lets that same session be replayed for each of the
+    // many `evaluate()`/`validate_settings()` calls performed by the bench
+    // loop, instead of being exhausted after the first one.
+    let replay_reset_handle = callback_handler.replay_reset_handle();
+
     // start the callback handler
     let handler = tokio::spawn(async { callback_handler.loop_eval().await });
 
@@ -60,6 +70,9 @@ pub(crate) async fn pull_and_bench(
     // tokio runtime. Remember, we're running inside of an async context.
     tokio::task::block_in_place(|| {
         bench_with_configuration_labeled("validate_settings", benchmark_config, || {
+            if let Some(handle) = &replay_reset_handle {
+                handle.reset();
+            }
             let _settings_validation_response = evaluator.validate_settings();
         });
     });
@@ -69,6 +82,9 @@ pub(crate) async fn pull_and_bench(
     // tokio runtime. Remember, we're running inside of an async context.
     tokio::task::block_in_place(|| {
         bench_with_configuration_labeled("validate", benchmark_config, || {
+            if let Some(handle) = &replay_reset_handle {
+                handle.reset();
+            }
             let _evaluation_result = evaluator.evaluate();
         });
     });
