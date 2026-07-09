@@ -282,6 +282,20 @@ var _ = Describe("PolicyServer controller", func() {
 			}
 		})
 
+		It("should add the Kubewarden finalizer during reconciliation when it is missing", func() {
+			// PolicyServers kept across a Helm uninstall/reinstall cycle have
+			// their finalizers stripped by the uninstall cleanup, and the reconciler
+			// must add them back.
+			policyServer := policiesv1.NewPolicyServerFactory().WithName(policyServerName).WithoutFinalizers().Build()
+			createPolicyServerAndWaitForItsService(ctx, policyServer)
+
+			Eventually(func() (*policiesv1.PolicyServer, error) {
+				return getTestPolicyServer(ctx, policyServerName)
+			}, timeout, pollInterval).Should(
+				HaveField("Finalizers", ContainElement(constants.KubewardenFinalizer)),
+			)
+		})
+
 		It("should create the policy server configmap with the assigned policies", func() {
 			timeoutEvalSeconds := int32(5)
 
