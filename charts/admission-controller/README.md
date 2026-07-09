@@ -367,18 +367,19 @@ helm install <release> <chart> -n <namespace> --take-ownership
 helm uninstall kubewarden-controller -n kubewarden
 ```
 
-This removes:
-
-- The controller Deployment
-- Managed defaults (resources labeled `kubewarden.io/managed-by=kubewarden-controller-defaults`)
-- ConfigMaps, Secrets, Services
+This removes the controller Deployment, default PolicyServer, recommended
+policies, and everything that makes the policies run, including the regular
+chart resources (RBAC, Secrets, Services, ConfigMaps, and so on).
 
 It does not remove:
 
-- CRDs (kept by `helm.sh/resource-policy: keep`)
-- User-managed PolicyServers and policies
+- CRDs (kept by `helm.sh/resource-policy: keep`).
+- User-managed PolicyServer and policy custom resources.
 
-To remove CRDs after uninstall:
+The user-managed custom resources are kept on purpose. Re-installing the chart
+deploys the controller, which reconciles them, and activates them back.
+
+To remove all user-managed custom resources and the CRDs do:
 
 ```sh
 kubectl delete crd policyservers.policies.kubewarden.io
