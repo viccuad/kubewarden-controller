@@ -45,6 +45,9 @@ const (
 	PartOfLabelKey                  = "app.kubernetes.io/part-of"
 	PartOfLabelValue                = "kubewarden"
 
+	// ComponentControllerLabelValue is set via Helm chart templates.
+	ComponentControllerLabelValue = "controller"
+
 	ManagedByKey = "app.kubernetes.io/managed-by"
 	// ManagedByKeyLabelValue is set via Helm chart templates.
 	ManagedByKeyLabelValue = "kubewarden-controller"

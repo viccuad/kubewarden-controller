@@ -48,6 +48,7 @@ import (
 
 	policiesv1 "github.com/kubewarden/adm-controller/api/policies/v1"
 	"github.com/kubewarden/adm-controller/api/policies/v1alpha2"
+	"github.com/kubewarden/adm-controller/internal/cleanup"
 	"github.com/kubewarden/adm-controller/internal/constants"
 	"github.com/kubewarden/adm-controller/internal/controller"
 	"github.com/kubewarden/adm-controller/internal/featuregates"
@@ -117,6 +118,8 @@ func main() {
 	var openTelemetryClientCertificateSecret string
 	var openTelemetryCertificateSecret string
 	var imagePullSecretsFlag string
+	var cleanupMode bool
+	var controllerDeploymentName string
 
 	flag.StringVar(&mgrOpts.MetricsAddr, "metrics-bind-address", ":8088", "The address the controller-runtime metric endpoint binds to.")
 	flag.StringVar(&mgrOpts.ProbeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -160,6 +163,18 @@ func main() {
 			"WARNING: enabling this increases the attack surface by exposing webhook endpoints "+
 			"on the host network and giving pods visibility of all node network interfaces. "+
 			"Use only when the Kubernetes API server cannot reach pod-network webhook endpoints.")
+	flag.BoolVar(&cleanupMode,
+		"cleanup",
+		false,
+		"Run in cleanup mode instead of starting the controller manager. "+
+			"Used by the Helm chart pre-delete hook: deletes the controller Deployment, "+
+			"the Kubewarden webhook configurations, the chart-managed default resources and "+
+			"the resources backing the policy servers, and strips the Kubewarden finalizers "+
+			"from the kept Kubewarden custom resources.")
+	flag.StringVar(&controllerDeploymentName,
+		"controller-deployment-name",
+		"",
+		"The name of the controller Deployment to delete in cleanup mode.")
 
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
@@ -167,6 +182,14 @@ func main() {
 	mgrOpts.EnableMutualTLS = config.ClientCAConfigMapName != ""
 	config.ImagePullSecrets = parseImagePullSecrets(imagePullSecretsFlag)
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if cleanupMode {
+		if err := runCleanup(mgrOpts.DeploymentsNamespace, controllerDeploymentName); err != nil {
+			setupLog.Error(err, "cleanup failed")
+			retcode = 1
+		}
+		return
+	}
 
 	// Validate --webhook-server-port range.
 	if int64(mgrOpts.WebhookServerPort) < minAllowedPort || int64(mgrOpts.WebhookServerPort) > maxAllowedPort {
@@ -299,6 +322,32 @@ func main() {
 		retcode = 1
 		return
 	}
+}
+
+// runCleanup runs the uninstall cleanup performed by the Helm chart
+// pre-delete hook, using a plain client instead of a manager: no leader
+// election, no webhook server, no metrics.
+func runCleanup(deploymentsNamespace, controllerDeploymentName string) error {
+	if deploymentsNamespace == "" {
+		return errors.New("--deployments-namespace must be provided in cleanup mode")
+	}
+	if controllerDeploymentName == "" {
+		return errors.New("--controller-deployment-name must be provided in cleanup mode")
+	}
+
+	k8sClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("failed to create the client: %w", err)
+	}
+
+	err = cleanup.Run(ctrl.SetupSignalHandler(), k8sClient, ctrl.Log.WithName("cleanup"), cleanup.Options{
+		DeploymentsNamespace:     deploymentsNamespace,
+		ControllerDeploymentName: controllerDeploymentName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to run the cleanup: %w", err)
+	}
+	return nil
 }
 
 func setupManager(mgrOpts ManagerOptions) (ctrl.Manager, error) {
