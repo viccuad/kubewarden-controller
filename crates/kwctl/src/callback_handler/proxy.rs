@@ -90,7 +90,7 @@ impl ReplayCursor {
     }
 }
 
-/// A cheap, clonable handle that allows resetting a replay session back to
+/// A cheap, cloneable handle that allows resetting a replay session back to
 /// its first recorded exchange. Used by `kwctl bench`, which reuses a single
 /// `Evaluator` (and therefore a single replay session) across many
 /// evaluations: a session recorded from one evaluation can be replayed
