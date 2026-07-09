@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -165,9 +166,15 @@ func (r *PolicyServerReconciler) updateConfigMapData(cfg *corev1.ConfigMap, poli
 	}
 
 	cfg.Data = data
-	cfg.ObjectMeta.Labels = map[string]string{
-		constants.PolicyServerLabelKey: policyServer.ObjectMeta.Name,
+	labels := map[string]string{
+		// PolicyServerLabelKey is used to map ConfigMap events to policy reconcile
+		// requests
+		constants.PolicyServerLabelKey: policyServer.Name,
 	}
+	// Use the same labels as other resources backing the PolicyServer, to track
+	// for deletion later on
+	maps.Copy(labels, policyServer.CommonLabels())
+	cfg.Labels = labels
 	if err = controllerutil.SetOwnerReference(policyServer, cfg, r.Client.Scheme()); err != nil {
 		return errors.Join(errors.New("failed to set policy server configmap owner reference"), err)
 	}
