@@ -334,7 +334,8 @@ to `false` removes all managed resources.
 CRDs are installed with the `helm.sh/resource-policy: keep` annotation:
 
 - `helm upgrade` updates CRDs normally
-- `helm uninstall` does not delete CRDs, which prevents cascade-deletion of all PolicyServers and policies in the cluster
+- `helm uninstall` does not delete CRDs, but deletes all deployed
+  Kubewarden custom resources (see [Uninstall](#uninstall))
 
 #### Reinstalling under a different release name or namespace
 
@@ -369,14 +370,15 @@ helm uninstall kubewarden-controller -n kubewarden
 
 This removes:
 
+- All Kubewarden custom resources (PolicyServers, ClusterAdmissionPolicies,
+  AdmissionPolicies, ClusterAdmissionPolicyGroups, AdmissionPolicyGroups),
+  including user-managed ones, in every namespace.
 - The controller Deployment
-- Managed defaults (resources labeled `kubewarden.io/managed-by=kubewarden-controller-defaults`)
 - ConfigMaps, Secrets, Services
 
 It does not remove:
 
 - CRDs (kept by `helm.sh/resource-policy: keep`)
-- User-managed PolicyServers and policies
 
 To remove CRDs after uninstall:
 
