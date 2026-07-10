@@ -668,7 +668,7 @@ func TestClusterAdmissionPolicyController(t *testing.T) {
 				Build()
 
 			// Manually add both finalizers to simulate upgrade scenario
-			policy.SetFinalizers([]string{constants.KubewardenFinalizer, constants.KubewardenFinalizerPre114})
+			policy.SetFinalizers([]string{constants.KubewardenFinalizer})
 			err = cfg.Client().Resources().Create(ctx, policy)
 			require.NoError(t, err)
 
@@ -693,8 +693,7 @@ func TestClusterAdmissionPolicyController(t *testing.T) {
 				&policiesv1.ClusterAdmissionPolicy{ObjectMeta: metav1.ObjectMeta{Name: upgradePolicyName}},
 				func(object k8s.Object) bool {
 					p := object.(*policiesv1.ClusterAdmissionPolicy)
-					return !containsFinalizer(p.GetFinalizers(), constants.KubewardenFinalizer) &&
-						!containsFinalizer(p.GetFinalizers(), constants.KubewardenFinalizerPre114)
+					return !containsFinalizer(p.GetFinalizers(), constants.KubewardenFinalizer)
 				},
 			), wait.WithTimeout(testTimeout), wait.WithInterval(testPollInterval))
 			require.NoError(t, err, "Both old and new finalizers should be removed (upgrade scenario)")

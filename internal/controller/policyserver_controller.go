@@ -430,11 +430,6 @@ func (r *PolicyServerReconciler) reconcileDeletion(ctx context.Context, policySe
 }
 
 func (r *PolicyServerReconciler) removeFinalizers(ctx context.Context, policyServer *policiesv1.PolicyServer) (ctrl.Result, error) {
-	// Remove the old finalizer used to ensure that the policy server created
-	// before this controller version is deleted as well. As the upgrade path
-	// supported by the Kubewarden project does not allow jumping versions, we
-	// can safely remove this line of code after a few releases.
-	controllerutil.RemoveFinalizer(policyServer, constants.KubewardenFinalizerPre114)
 	controllerutil.RemoveFinalizer(policyServer, constants.KubewardenFinalizer)
 	if err := r.Update(ctx, policyServer); err != nil {
 		// return if PolicyServer was previously deleted

@@ -36,7 +36,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	policiesv1 "github.com/kubewarden/adm-controller/api/policies/v1"
 	"github.com/kubewarden/adm-controller/internal/constants"
@@ -1765,38 +1764,6 @@ var _ = Describe("PolicyServer controller", func() {
 					return getTestPolicyServer(ctx, policyServerName)
 				}, timeout, pollInterval).ShouldNot(
 					HaveField("Finalizers", ContainElement(constants.KubewardenFinalizer)),
-				)
-			})
-
-			It("should get its old not domain-qualified finalizer removed", func() {
-				Eventually(func() error {
-					policyServer, err := getTestPolicyServer(ctx, policyServerName)
-					if err != nil {
-						return err
-					}
-					controllerutil.AddFinalizer(policyServer, constants.KubewardenFinalizerPre114)
-					return k8sClient.Update(ctx, policyServer)
-				}, timeout, pollInterval).Should(Succeed())
-
-				Eventually(func() error {
-					policyServer, err := getTestPolicyServer(ctx, policyServerName)
-					if err != nil {
-						return err
-					}
-					if controllerutil.ContainsFinalizer(policyServer, constants.KubewardenFinalizerPre114) {
-						return nil
-					}
-					return errors.New("finalizer not found")
-				}, timeout, pollInterval).Should(Succeed())
-
-				Expect(
-					k8sClient.Delete(ctx, policiesv1.NewPolicyServerFactory().WithName(policyServerName).Build()),
-				).To(Succeed())
-
-				Eventually(func() (*policiesv1.PolicyServer, error) {
-					return getTestPolicyServer(ctx, policyServerName)
-				}, timeout, pollInterval).ShouldNot(
-					HaveField("Finalizers", ContainElement(constants.KubewardenFinalizerPre114)),
 				)
 			})
 		})

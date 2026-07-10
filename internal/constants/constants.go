@@ -66,8 +66,7 @@ const (
 
 	KubewardenPoliciesGroup = "policies.kubewarden.io"
 
-	KubewardenFinalizerPre114 = "kubewarden"
-	KubewardenFinalizer       = "kubewarden.io/finalizer"
+	KubewardenFinalizer = "kubewarden.io/finalizer"
 
 	KubernetesRevisionAnnotation = "deployment.kubernetes.io/revision"
 

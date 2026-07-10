@@ -194,22 +194,8 @@ func (r *policySubReconciler) removePolicyWebhooksAndFinalizers(ctx context.Cont
 		return err
 	}
 
-	finalizerRemoved := false
 	if controllerutil.ContainsFinalizer(policy, constants.KubewardenFinalizer) {
 		controllerutil.RemoveFinalizer(policy, constants.KubewardenFinalizer)
-		finalizerRemoved = true
-	}
-	// Remove the old finalizer used to ensure that the policy server created
-	// before this controller version is deleted as well.
-	// TODO:
-	// As the upgrade path supported by the Kubewarden project does not
-	// allow jumping versions, we can safely remove this line of code after a few
-	// releases.
-	if controllerutil.ContainsFinalizer(policy, constants.KubewardenFinalizerPre114) {
-		controllerutil.RemoveFinalizer(policy, constants.KubewardenFinalizerPre114)
-		finalizerRemoved = true
-	}
-	if finalizerRemoved {
 		if err := r.Update(ctx, policy); err != nil {
 			return fmt.Errorf("cannot update policy: %w", err)
 		}
