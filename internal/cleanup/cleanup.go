@@ -143,7 +143,12 @@ func deleteControllerDeployment(ctx context.Context, c client.Client, opts Optio
 }
 
 // deleteWebhookConfigurations deletes all the ValidatingWebhookConfigurations
-// and MutatingWebhookConfigurations labeled as part of Kubewarden.
+// and MutatingWebhookConfigurations labeled as part of Kubewarden. The broad
+// "app.kubernetes.io/part-of=kubewarden" selector is intentional: the
+// policies webhook configurations carry no other label, and the controller's
+// own webhook configurations must be deleted here as well, so the following
+// writes to the Kubewarden custom resources are not rejected by fail-closed
+// webhooks pointing to the deleted controller.
 func deleteWebhookConfigurations(ctx context.Context, c client.Client) error {
 	partOfKubewarden := client.MatchingLabels{constants.PartOfLabelKey: constants.PartOfLabelValue}
 
@@ -239,11 +244,18 @@ func deleteDefaultsResources(ctx context.Context, c client.Client) error {
 }
 
 // deletePolicyServerResources deletes the resources backing the policy
-// servers in the deployments namespace. Everything is selected by the labels
-// set by the controller.
+// servers in the deployments namespace. Everything is selected by the
+// "app.kubernetes.io/part-of=kubewarden" and
+// "app.kubernetes.io/component=policy-server" labels set by the controller
+// (the same selection used by the certificate rotation), so the chart-managed
+// resources carrying only the part-of label (e.g. the controller Secrets and
+// Services) are left for Helm to delete right after this hook.
 func deletePolicyServerResources(ctx context.Context, c client.Client, namespace string) error {
 	inNamespace := client.InNamespace(namespace)
-	partOfKubewarden := client.MatchingLabels{constants.PartOfLabelKey: constants.PartOfLabelValue}
+	policyServerLabels := client.MatchingLabels{
+		constants.PartOfLabelKey:    constants.PartOfLabelValue,
+		constants.ComponentLabelKey: constants.ComponentPolicyServerLabelValue,
+	}
 
 	for _, list := range []client.ObjectList{
 		&appsv1.DeploymentList{},
@@ -252,7 +264,7 @@ func deletePolicyServerResources(ctx context.Context, c client.Client, namespace
 		&corev1.ConfigMapList{},
 		&policyv1.PodDisruptionBudgetList{},
 	} {
-		if err := deleteEachListItem(ctx, c, list, inNamespace, partOfKubewarden); err != nil {
+		if err := deleteEachListItem(ctx, c, list, inNamespace, policyServerLabels); err != nil {
 			return err
 		}
 	}

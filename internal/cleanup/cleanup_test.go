@@ -366,6 +366,28 @@ func TestDeletePolicyServerResources(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "unrelated-secret", Namespace: namespace},
 	}))
 
+	// Chart-managed resources are part of Kubewarden but do not back a
+	// policy server: they must be left for Helm to delete, not swept here.
+	require.NoError(t, k8sClient.Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kubewarden-ca",
+			Namespace: namespace,
+			Labels: map[string]string{
+				constants.PartOfLabelKey:    constants.PartOfLabelValue,
+				constants.ComponentLabelKey: constants.ComponentControllerLabelValue,
+			},
+		},
+	}))
+	require.NoError(t, k8sClient.Create(ctx, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kubewarden-defaults",
+			Namespace: namespace,
+			Labels: map[string]string{
+				constants.PartOfLabelKey: constants.PartOfLabelValue,
+			},
+		},
+	}))
+
 	// A policy server resource with a third-party finalizer: the deletion is
 	// issued and the cleanup moves on without waiting or failing. Completing
 	// the deletion is the responsibility of whoever owns the finalizer.
@@ -388,6 +410,8 @@ func TestDeletePolicyServerResources(t *testing.T) {
 	assertNotFound(ctx, t, &policyv1.PodDisruptionBudget{}, namespace, resourcesName)
 	assertFound(ctx, t, &corev1.ConfigMap{}, namespace, "unrelated-configmap")
 	assertFound(ctx, t, &corev1.Secret{}, namespace, "unrelated-secret")
+	assertFound(ctx, t, &corev1.Secret{}, namespace, "kubewarden-ca")
+	assertFound(ctx, t, &corev1.ConfigMap{}, namespace, "kubewarden-defaults")
 
 	terminatingConfigMap := &corev1.ConfigMap{}
 	assertFound(ctx, t, terminatingConfigMap, namespace, "policy-server-third-party-finalizer")
