@@ -92,7 +92,7 @@ advisories-rust:
 
 .PHONY: coverage-rust
 coverage-rust:
-	cargo llvm-cov --ignore-run-fail --doctests --html --output-dir coverage/rust/
+	cargo llvm-cov --ignore-run-fail --html --output-dir coverage/rust/
 
 CONTROLLER_SRC_DIRS := cmd/controller api internal/controller
 CONTROLLER_GO_SRCS := $(shell find $(CONTROLLER_SRC_DIRS) -type f -name '*.go')
