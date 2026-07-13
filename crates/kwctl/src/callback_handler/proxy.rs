@@ -7,11 +7,18 @@ use policy_evaluator::{
     policy_fetcher::{sigstore::trust::sigstore::SigstoreTrustRoot, sources::Sources},
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::VecDeque, fs::File, path::PathBuf, sync::Arc};
+use std::{
+    fs::File,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info, warn};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 enum Response {
     Success { payload: String },
@@ -23,6 +30,83 @@ enum Response {
 struct Exchange {
     pub request: String,
     pub response: Response,
+}
+
+/// Mirrors `Response`, but stores the success payload as bytes instead of a
+/// `String`. Used by `ParsedExchange` so that the payload is decoded once,
+/// at session-load time, instead of on every replayed request.
+///
+/// Note: this does not make replay fully allocation-free. Each replayed
+/// call must still produce a fresh, owned `Vec<u8>`, because
+/// `CallbackResponse::payload` (defined in the `policy-evaluator` crate) is
+/// an owned `Vec<u8>`.
+enum ParsedResponse {
+    Success { payload: Vec<u8> },
+    Error { message: String },
+}
+
+impl From<Response> for ParsedResponse {
+    fn from(response: Response) -> Self {
+        match response {
+            Response::Success { payload } => ParsedResponse::Success {
+                payload: payload.into_bytes(),
+            },
+            Response::Error { message } => ParsedResponse::Error { message },
+        }
+    }
+}
+
+/// A recorded exchange, with the request already deserialized into a
+/// `CallbackRequestType`. Deserializing once at load time (instead of on
+/// every replayed request) matters because `kwctl bench` replays the same
+/// session thousands of times.
+struct ParsedExchange {
+    request: CallbackRequestType,
+    response: ParsedResponse,
+}
+
+/// A monotonically-advancing cursor into a replay session, shared between
+/// `CallbackHandlerProxy` and any `ReplayResetHandle`s that need to rewind
+/// it (e.g. `kwctl bench`, before every benchmark iteration).
+#[derive(Default)]
+struct ReplayCursor(AtomicUsize);
+
+impl ReplayCursor {
+    /// Returns the current index and atomically advances the cursor by one.
+    fn advance(&self) -> usize {
+        self.0.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Resets the cursor back to the first recorded exchange.
+    fn reset(&self) {
+        self.0.store(0, Ordering::SeqCst);
+    }
+
+    /// Best-effort peek at the current value, for diagnostics only (e.g.
+    /// warning that not all exchanges were replayed at shutdown). Must not
+    /// be relied upon for cross-thread visibility guarantees.
+    fn peek(&self) -> usize {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+/// A cheap, cloneable handle that allows resetting a replay session back to
+/// its first recorded exchange. Used by `kwctl bench`, which reuses a single
+/// `Evaluator` (and therefore a single replay session) across many
+/// evaluations: a session recorded from one evaluation can be replayed
+/// again for every benchmark iteration by resetting the cursor beforehand.
+///
+/// A recorded session is expected to contain exactly the exchanges of a
+/// single evaluation. Resetting mid-session (i.e. before all of its
+/// exchanges have been consumed) is supported and simply restarts matching
+/// from the first exchange.
+#[derive(Clone)]
+pub(crate) struct ReplayResetHandle(Arc<ReplayCursor>);
+
+impl ReplayResetHandle {
+    pub(crate) fn reset(&self) {
+        self.0.reset();
+    }
 }
 
 /// A proxy against a `policy_evaluator::CallbackHandler`
@@ -42,6 +126,11 @@ pub(crate) struct CallbackHandlerProxy {
     /// We deal with failures later on, when writing the session
     /// file.
     recorded_exchanges: Vec<Result<Exchange>>,
+
+    /// Cursor into the list of recorded exchanges being replayed. Shared
+    /// with the `ReplayResetHandle` handed out to callers that need to
+    /// rewind the session (e.g. `kwctl bench`). Only used in replay mode.
+    replay_cursor: Arc<ReplayCursor>,
 
     rx: mpsc::Receiver<CallbackRequest>,
     tx: mpsc::Sender<CallbackRequest>,
@@ -71,11 +160,22 @@ impl CallbackHandlerProxy {
             sigstore_trust_root,
             kube_client,
             recorded_exchanges: vec![],
+            replay_cursor: Arc::new(ReplayCursor::default()),
         })
     }
 
     pub fn sender_channel(&self) -> mpsc::Sender<CallbackRequest> {
         self.tx.clone()
+    }
+
+    /// Returns a handle that can be used to reset the replay session back
+    /// to its first recorded exchange. Only meaningful (returns `Some`) when
+    /// the proxy is running in replay mode.
+    pub fn replay_reset_handle(&self) -> Option<ReplayResetHandle> {
+        match &self.mode {
+            ProxyMode::Replay { .. } => Some(ReplayResetHandle(self.replay_cursor.clone())),
+            ProxyMode::Record { .. } => None,
+        }
     }
 
     fn record_exchange(
@@ -168,12 +268,23 @@ impl CallbackHandlerProxy {
         // goes wrong here when dealing with channel message passing,
         // there's no nice way to handle errors here.
 
-        let mut exchanges: VecDeque<Exchange> = if let ProxyMode::Replay { source } = &self.mode {
+        let exchanges: Vec<ParsedExchange> = if let ProxyMode::Replay { source } = &self.mode {
             let file = File::open(source).unwrap_or_else(|_| {
                 panic!("Cannot open host capabilities interactions file {source:?}")
             });
-            serde_yaml::from_reader(file)
-                .unwrap_or_else(|_| panic!("cannot deserialize contents of {source:?}"))
+            let exchanges: Vec<Exchange> = serde_yaml::from_reader(file)
+                .unwrap_or_else(|_| panic!("cannot deserialize contents of {source:?}"));
+            exchanges
+                .into_iter()
+                .map(|exchange| {
+                    let request: CallbackRequestType = serde_yaml::from_str(&exchange.request)
+                        .expect("Cannot deserialize recorded request into `CallbackRequestType`");
+                    ParsedExchange {
+                        request,
+                        response: exchange.response.into(),
+                    }
+                })
+                .collect()
         } else {
             // this should never happen
             unreachable!()
@@ -184,14 +295,19 @@ impl CallbackHandlerProxy {
                 // place the shutdown check before the message evaluation,
                 // as recommended by tokio's documentation about select!
                 _ = &mut self.shutdown_channel => {
-                    if !exchanges.is_empty() {
-                        warn!(leftovers = ?exchanges, "Some of the recorded exchanges have not been replayed");
+                    let cursor = self.replay_cursor.peek();
+                    if cursor < exchanges.len() {
+                        warn!(
+                            replayed = cursor,
+                            total = exchanges.len(),
+                            "Some of the recorded exchanges have not been replayed"
+                        );
                     }
                     return;
                 },
                 maybe_req = self.rx.recv() => {
                     if let Some(req) = maybe_req {
-                        let response = Self::produce_recorded_response(&req, &mut exchanges);
+                        let response = Self::produce_recorded_response(&req, &exchanges, &self.replay_cursor);
 
                         req.response_channel.send(response).expect("Cannot send back response to policy");
                     }
@@ -202,24 +318,26 @@ impl CallbackHandlerProxy {
 
     fn produce_recorded_response(
         req: &CallbackRequest,
-        exchanges: &mut VecDeque<Exchange>,
+        exchanges: &[ParsedExchange],
+        cursor: &ReplayCursor,
     ) -> Result<CallbackResponse> {
-        match exchanges.pop_front() {
-            None => Err(anyhow!("the list of recorded responses is empty")),
+        let index = cursor.advance();
+        match exchanges.get(index) {
+            None => Err(anyhow!(
+                "the list of recorded responses is empty or has been exhausted"
+            )),
             Some(exchange) => {
-                let expected_request: CallbackRequestType = serde_yaml::from_str(&exchange.request)
-                    .expect("Cannot deserialize recorded request into `CallbackRequestType`");
-                if expected_request == req.request {
-                    match exchange.response {
-                        Response::Success { payload } => Ok(CallbackResponse {
-                            payload: payload.into_bytes(),
+                if exchange.request == req.request {
+                    match &exchange.response {
+                        ParsedResponse::Success { payload } => Ok(CallbackResponse {
+                            payload: payload.clone(),
                         }),
-                        Response::Error { message } => Err(anyhow!("{message}")),
+                        ParsedResponse::Error { message } => Err(anyhow!("{message}")),
                     }
                 } else {
                     Err(anyhow!(
                         "Replay error: unexpected request. Was expecting {:?}, got {:?} instead",
-                        expected_request,
+                        exchange.request,
                         req.request
                     ))
                 }
@@ -333,19 +451,40 @@ impl CallbackHandlerProxy {
 mod tests {
     use super::*;
 
+    fn parsed_exchange(request: CallbackRequestType, response: Response) -> ParsedExchange {
+        ParsedExchange {
+            request,
+            response: response.into(),
+        }
+    }
+
+    fn dummy_request(request: CallbackRequestType) -> CallbackRequest {
+        let (response_tx, _) = oneshot::channel::<Result<CallbackResponse>>();
+        CallbackRequest {
+            request,
+            response_channel: response_tx,
+        }
+    }
+
+    // `CallbackRequestType` does not derive `Clone`, so tests that need the
+    // same request value more than once just build it again via this helper.
+    fn busybox_manifest_digest_request() -> CallbackRequestType {
+        CallbackRequestType::OciManifestDigest {
+            image: "busybox".to_string(),
+        }
+    }
+
     #[test]
     fn record_response_no_more_records() {
-        let mut exchanges: VecDeque<Exchange> = VecDeque::new();
+        let exchanges: Vec<ParsedExchange> = vec![];
+        let cursor = ReplayCursor::default();
 
-        let (response_tx, _) = oneshot::channel::<Result<CallbackResponse>>();
-        let request = CallbackRequest {
-            request: CallbackRequestType::DNSLookupHost {
-                host: "kubewarden.io".to_string(),
-            },
-            response_channel: response_tx,
-        };
+        let request = dummy_request(CallbackRequestType::DNSLookupHost {
+            host: "kubewarden.io".to_string(),
+        });
 
-        let response = CallbackHandlerProxy::produce_recorded_response(&request, &mut exchanges);
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor);
         assert!(response.is_err());
         let err = response.unwrap_err();
 
@@ -356,29 +495,24 @@ mod tests {
 
     #[test]
     fn record_response_unexpected_request() {
-        let expected_request = CallbackRequestType::OciManifestDigest {
-            image: "busybox".to_string(),
-        };
-        let expected_exchange = Exchange {
-            request: serde_yaml::to_string(&expected_request)
-                .expect("cannot serialize expected request"),
-            response: Response::Success {
+        let expected_exchange = parsed_exchange(
+            CallbackRequestType::OciManifestDigest {
+                image: "busybox".to_string(),
+            },
+            Response::Success {
                 payload: "not relevant".to_string(),
             },
-        };
+        );
 
-        let mut exchanges: VecDeque<Exchange> = VecDeque::new();
-        exchanges.push_front(expected_exchange);
+        let exchanges = vec![expected_exchange];
+        let cursor = ReplayCursor::default();
 
-        let (response_tx, _) = oneshot::channel::<Result<CallbackResponse>>();
-        let request = CallbackRequest {
-            request: CallbackRequestType::DNSLookupHost {
-                host: "kubewarden.io".to_string(),
-            },
-            response_channel: response_tx,
-        };
+        let request = dummy_request(CallbackRequestType::DNSLookupHost {
+            host: "kubewarden.io".to_string(),
+        });
 
-        let response = CallbackHandlerProxy::produce_recorded_response(&request, &mut exchanges);
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor);
         assert!(response.is_err());
         let err = response.unwrap_err();
 
@@ -389,56 +523,101 @@ mod tests {
 
     #[test]
     fn record_response_replay_successful_response() {
-        let request = CallbackRequestType::OciManifestDigest {
-            image: "busybox".to_string(),
-        };
         let expected_payload = "hello world".to_string();
-        let exchange = Exchange {
-            request: serde_yaml::to_string(&request).expect("cannot serialize request"),
-            response: Response::Success {
+        let exchanges = vec![parsed_exchange(
+            busybox_manifest_digest_request(),
+            Response::Success {
                 payload: expected_payload.clone(),
             },
-        };
+        )];
+        let cursor = ReplayCursor::default();
 
-        let mut exchanges: VecDeque<Exchange> = VecDeque::new();
-        exchanges.push_front(exchange);
+        let request = dummy_request(busybox_manifest_digest_request());
 
-        let (response_tx, _) = oneshot::channel::<Result<CallbackResponse>>();
-        let request = CallbackRequest {
-            request,
-            response_channel: response_tx,
-        };
-
-        let response = CallbackHandlerProxy::produce_recorded_response(&request, &mut exchanges)
-            .expect("should not be an error");
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor)
+                .expect("should not be an error");
         assert_eq!(response.payload, expected_payload.into_bytes());
     }
 
     #[test]
     fn record_response_replay_errored_response() {
-        let request = CallbackRequestType::OciManifestDigest {
-            image: "busybox".to_string(),
-        };
         let expected_err_msg = "something went wrong".to_string();
-        let exchange = Exchange {
-            request: serde_yaml::to_string(&request).expect("cannot serialize request"),
-            response: Response::Error {
+        let exchanges = vec![parsed_exchange(
+            busybox_manifest_digest_request(),
+            Response::Error {
                 message: expected_err_msg.clone(),
             },
-        };
+        )];
+        let cursor = ReplayCursor::default();
 
-        let mut exchanges: VecDeque<Exchange> = VecDeque::new();
-        exchanges.push_front(exchange);
+        let request = dummy_request(busybox_manifest_digest_request());
 
-        let (response_tx, _) = oneshot::channel::<Result<CallbackResponse>>();
-        let request = CallbackRequest {
-            request,
-            response_channel: response_tx,
-        };
-
-        let response = CallbackHandlerProxy::produce_recorded_response(&request, &mut exchanges);
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor);
         assert!(response.is_err());
         let err = response.unwrap_err();
         assert_eq!(err.to_string(), expected_err_msg);
+    }
+
+    #[test]
+    fn replay_can_be_reset_and_replayed_again() {
+        let expected_payload = "hello world".to_string();
+        let exchanges = vec![parsed_exchange(
+            busybox_manifest_digest_request(),
+            Response::Success {
+                payload: expected_payload.clone(),
+            },
+        )];
+        let cursor = ReplayCursor::default();
+
+        // First "evaluation": consume the single recorded exchange.
+        let request = dummy_request(busybox_manifest_digest_request());
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor)
+                .expect("should not be an error");
+        assert_eq!(response.payload, expected_payload.clone().into_bytes());
+
+        // Without a reset, the session is exhausted.
+        let request = dummy_request(busybox_manifest_digest_request());
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor);
+        assert!(response.is_err());
+        assert!(response.unwrap_err().to_string().contains("empty"));
+
+        // Resetting the cursor allows the same session to be replayed again,
+        // as `kwctl bench` does before every benchmark iteration.
+        cursor.reset();
+        let request = dummy_request(busybox_manifest_digest_request());
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor)
+                .expect("should not be an error after reset");
+        assert_eq!(response.payload, expected_payload.into_bytes());
+    }
+
+    #[test]
+    fn replay_reset_handle_resets_shared_cursor() {
+        let exchanges = vec![parsed_exchange(
+            busybox_manifest_digest_request(),
+            Response::Success {
+                payload: "hello world".to_string(),
+            },
+        )];
+        let cursor = Arc::new(ReplayCursor::default());
+        let handle = ReplayResetHandle(cursor.clone());
+
+        let request = dummy_request(busybox_manifest_digest_request());
+        CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor)
+            .expect("should not be an error");
+        assert_eq!(cursor.peek(), 1);
+
+        handle.reset();
+        assert_eq!(cursor.peek(), 0);
+
+        // The session can be replayed again after resetting through the handle.
+        let request = dummy_request(busybox_manifest_digest_request());
+        let response =
+            CallbackHandlerProxy::produce_recorded_response(&request, &exchanges, &cursor);
+        assert!(response.is_ok());
     }
 }

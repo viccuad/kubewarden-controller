@@ -760,9 +760,51 @@ fn test_bench() {
         .arg(test_data("unprivileged-pod.json"))
         .arg("registry://ghcr.io/kubewarden/tests/pod-privileged:v0.2.5");
 
-    cmd.assert().success();
     cmd.assert()
+        .success()
         .stdout(contains("validate").and(contains("warming up")));
+}
+
+/// `kwctl bench` reuses a single evaluator (and therefore a single replay
+/// session) across many `validate_settings()`/`evaluate()` calls. A recorded
+/// session only contains the host-capability exchanges of a single
+/// evaluation, so without resetting the replay cursor before every
+/// iteration, the session would be exhausted after the first one and every
+/// subsequent evaluation would fail with a replay error. This test asserts
+/// that this does not happen: the same session is successfully replayed for
+/// every benchmark iteration.
+#[test]
+fn test_bench_context_aware_replay_session_is_reset_every_iteration() {
+    let tempdir = tempdir().unwrap();
+    pull_policies(tempdir.path(), POLICIES);
+
+    let session_path =
+        test_data("host-capabilities-sessions/context-aware-demo-namespace-found.yml");
+
+    let mut cmd = setup_command(tempdir.path());
+    cmd.arg("bench")
+        .arg("--allow-context-aware")
+        .arg("--warm-up-time")
+        .arg("1")
+        .arg("--measurement-time")
+        .arg("1")
+        .arg("--num-samples")
+        .arg("5")
+        .arg("--request-path")
+        .arg(test_data(
+            "context-aware-policy-request-pod-creation-all-labels.json",
+        ))
+        .arg("--replay-host-capabilities-interactions")
+        .arg(session_path)
+        .arg("registry://ghcr.io/kubewarden/tests/context-aware-policy-demo:v0.1.0");
+
+    // None of the (many) evaluations performed by the bench loop should have
+    // hit an exhausted or out-of-order replay session.
+    cmd.assert()
+        .success()
+        .stdout(contains("validate").and(contains("warming up")))
+        .stderr(contains("recorded responses").not())
+        .stderr(contains("unexpected request").not());
 }
 
 #[rstest]

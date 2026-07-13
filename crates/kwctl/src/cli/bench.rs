@@ -37,7 +37,7 @@ fn create_benchmark_config(matches: &ArgMatches) -> Result<tiny_bench::Benchmark
         let num: usize = num_samples
             .parse()
             .map_err(|e| anyhow!("Cannot convert 'num-samples' to number: {:?}", e))?;
-        benchmark_cfg.num_resamples = num;
+        benchmark_cfg.num_samples = num;
     }
     if let Some(warm_up_time) = matches.get_one::<String>("warm_up_time") {
         let duration: u64 = warm_up_time

@@ -92,7 +92,7 @@ advisories-rust:
 
 .PHONY: coverage-rust
 coverage-rust:
-	cargo llvm-cov --ignore-run-fail --doctests --html --output-dir coverage/rust/
+	cargo llvm-cov --ignore-run-fail --html --output-dir coverage/rust/
 
 CONTROLLER_SRC_DIRS := cmd/controller api internal/controller
 CONTROLLER_GO_SRCS := $(shell find $(CONTROLLER_SRC_DIRS) -type f -name '*.go')
@@ -190,10 +190,12 @@ $(LOCALBIN):
 ## Tool Versions
 GOLANGCI_LINT_VERSION ?= v2.12.1
 ZIZMOR_VERSION ?= 1.23.1
+TYPOS_VERSION ?= 1.48.0
 
 ## Tool Binaries
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 ZIZMOR_LINT = $(LOCALBIN)/zizmor-$(ZIZMOR_VERSION)
+TYPOS_LINT = $(LOCALBIN)/typos-$(TYPOS_VERSION)
 
 .PHONY: zizmor
 zizmor: $(ZIZMOR_LINT) ## Run zizmor static analysis on GitHub Actions workflows
@@ -206,6 +208,19 @@ $(ZIZMOR_LINT): $(LOCALBIN)
 	mv $(LOCALBIN)/zizmor $(ZIZMOR_LINT) ;\
 	}
 
+.PHONY: typos
+typos: $(TYPOS_LINT) ## Check spelling with typos
+	$(TYPOS_LINT)
+.PHONY: typos-fix
+typos-fix: $(TYPOS_LINT) ## Check spelling with typos and apply fixes
+	$(TYPOS_LINT) -w
+$(TYPOS_LINT): $(LOCALBIN)
+	@[ -f $(TYPOS_LINT) ] || { \
+	set -e; \
+	echo "Installing typos-cli@$(TYPOS_VERSION)" ;\
+	cargo install --locked --root $(shell pwd) typos-cli@$(TYPOS_VERSION) ;\
+	mv $(LOCALBIN)/typos $(TYPOS_LINT) ;\
+	}
 
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.

@@ -6,6 +6,8 @@ use tokio::sync::{mpsc, oneshot};
 
 mod proxy;
 
+pub(crate) use proxy::ReplayResetHandle;
+
 use crate::{
     callback_handler::proxy::CallbackHandlerProxy,
     config::{HostCapabilitiesMode, pull_and_run::PullAndRunSettings},
@@ -46,6 +48,22 @@ impl CallbackHandler {
         match self {
             CallbackHandler::Direct(handler) => handler.sender_channel(),
             CallbackHandler::Proxy(handler) => handler.sender_channel(),
+        }
+    }
+
+    /// Returns a handle that can be used to reset a replay session back to
+    /// its first recorded exchange. Only meaningful (returns `Some`) when
+    /// the callback handler is a proxy running in replay mode; `None`
+    /// otherwise (direct mode, or proxy in record mode).
+    ///
+    /// This is used by `kwctl bench`, which reuses a single evaluator (and
+    /// therefore a single replay session) across many evaluations: resetting
+    /// the cursor before each evaluation lets a session recorded from one
+    /// evaluation be replayed again for every benchmark iteration.
+    pub fn replay_reset_handle(&self) -> Option<ReplayResetHandle> {
+        match self {
+            CallbackHandler::Direct(_) => None,
+            CallbackHandler::Proxy(handler) => handler.replay_reset_handle(),
         }
     }
 
