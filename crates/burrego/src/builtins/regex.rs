@@ -147,9 +147,9 @@ struct Expression {
 impl Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_regexp {
-            write!(f, "{}", &self.expression)
+            write!(f, "{}", self.expression)
         } else {
-            write!(f, "{}", &regex_escape(&self.expression))
+            write!(f, "{}", regex_escape(&self.expression))
         }
     }
 }

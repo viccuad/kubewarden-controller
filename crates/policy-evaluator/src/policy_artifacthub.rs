@@ -177,10 +177,7 @@ impl ArtifactHubPkg {
 
         let semver_version = Version::parse(version)
             .map_err(|e| ArtifactHubError::NoSemverVersion(e.to_string()))?;
-        if questions
-            .and_then(|q| if q.is_empty() { Some(q) } else { None })
-            .is_some()
-        {
+        if questions.filter(|&q| q.is_empty()).is_some() {
             return Err(ArtifactHubError::EmptyQuestionsUI);
         }
 
