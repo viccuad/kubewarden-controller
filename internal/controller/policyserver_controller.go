@@ -110,6 +110,18 @@ func (r *PolicyServerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return r.reconcileDeletion(ctx, &policyServer)
 	}
 
+	// Ensure the kubewarden finalizer is present before any resource backing
+	// the PolicyServer is created and once we know it's not being deleted.
+	// This also covers PolicyServers kept across a Helm uninstall/reinstall
+	// cycle, whose finalizers are stripped by the uninstall cleanup and regained
+	// here.
+	if !controllerutil.ContainsFinalizer(&policyServer, constants.KubewardenFinalizer) {
+		controllerutil.AddFinalizer(&policyServer, constants.KubewardenFinalizer)
+		if err := r.Update(ctx, &policyServer); err != nil {
+			return ctrl.Result{}, fmt.Errorf("cannot add finalizer to policy server: %w", err)
+		}
+	}
+
 	err := r.reconcilePolicyServerCertSecret(ctx, &policyServer)
 	if err != nil {
 		return ctrl.Result{}, err

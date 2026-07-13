@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/go-logr/logr"
@@ -83,9 +82,6 @@ func (ps *PolicyServer) SetupWebhookWithManager(mgr ctrl.Manager, deploymentsNam
 	logger := mgr.GetLogger().WithName("policyserver-webhook")
 
 	err := ctrl.NewWebhookManagedBy(mgr, ps).
-		WithDefaulter(&policyServerDefaulter{
-			logger: logger,
-		}).
 		WithValidator(&policyServerValidator{
 			deploymentsNamespace: deploymentsNamespace,
 			k8sClient:            mgr.GetClient(),
@@ -94,24 +90,6 @@ func (ps *PolicyServer) SetupWebhookWithManager(mgr ctrl.Manager, deploymentsNam
 		Complete()
 	if err != nil {
 		return fmt.Errorf("failed enrolling webhook with manager: %w", err)
-	}
-
-	return nil
-}
-
-// +kubebuilder:webhook:path=/mutate-policies-kubewarden-io-v1-policyserver,mutating=true,failurePolicy=fail,sideEffects=None,groups=policies.kubewarden.io,resources=policyservers,verbs=create;update,versions=v1,name=mpolicyserver.kb.io,admissionReviewVersions={v1,v1beta1}
-
-// policyServerDefaulter sets defaults of PolicyServer objects when they are created or updated.
-type policyServerDefaulter struct {
-	logger logr.Logger
-}
-
-// Default implements webhook.CustomDefaulter so a webhook will be registered for the type.
-func (d *policyServerDefaulter) Default(_ context.Context, policyServer *PolicyServer) error {
-	d.logger.Info("Defaulting PolicyServer", "name", policyServer.GetName())
-
-	if policyServer.ObjectMeta.DeletionTimestamp == nil {
-		controllerutil.AddFinalizer(policyServer, constants.KubewardenFinalizer)
 	}
 
 	return nil

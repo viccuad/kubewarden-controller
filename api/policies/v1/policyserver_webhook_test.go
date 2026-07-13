@@ -27,21 +27,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
-
-	"github.com/kubewarden/adm-controller/internal/constants"
 )
 
 const fakeSigstoreTrustConfig = `{"trusted_root": {"version": "test"}}`
-
-func TestPolicyServerDefault(t *testing.T) {
-	defaulter := policyServerDefaulter{}
-	policyServer := &PolicyServer{}
-
-	err := defaulter.Default(t.Context(), policyServer)
-	require.NoError(t, err)
-
-	assert.Contains(t, policyServer.Finalizers, constants.KubewardenFinalizer)
-}
 
 func TestPolicyServerValidateCreate(t *testing.T) {
 	validator := policyServerValidator{logger: logr.Discard()}
