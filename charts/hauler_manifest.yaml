@@ -12,7 +12,7 @@ metadata:
     hauler.dev/certificate-oidc-issuer: https://token.actions.githubusercontent.com
 spec:
   images:
-    - name: ghcr.io/kubewarden/adm-controller/audit-scanner:v1.37.0-rc.1
+    - name: ghcr.io/kubewarden/adm-controller/audit-scanner:v1.37.0-rc.2
       certificate-identity-regexp: https://github.com/kubewarden/adm-controller/.github/workflows/release.yml@refs/tags/v1.37.0-rc.2
     - name: ghcr.io/kubewarden/adm-controller/controller:v1.37.0-rc.2
       certificate-identity-regexp: https://github.com/kubewarden/adm-controller/.github/workflows/release.yml@refs/tags/v1.37.0-rc.2
@@ -58,7 +58,7 @@ spec:
   charts:
     - name: admission-controller
       repoURL: https://charts.kubewarden.io
-      version: 6.1.0
+      version: 6.0.0-rc.2
     - name: policy-reporter
       version: 3.8.1
       repoURL: https://kyverno.github.io/policy-reporter
