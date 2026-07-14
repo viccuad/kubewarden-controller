@@ -125,10 +125,7 @@ It does not remove:
 - CRDs (kept by `helm.sh/resource-policy: keep`)
 - User-managed PolicyServers and policies
 
-The user-managed custom resources are kept on purpose. Re-installing the chart
-deploys the controller, which reconciles them, and activates them back.
-
-To remove all user-managed custom resources and the CRDs do:
+To remove CRDs after uninstall:
 
 ```sh
 kubectl delete crd policyservers.policies.kubewarden.io
