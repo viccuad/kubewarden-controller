@@ -49,10 +49,10 @@ time = { version = "0.3", features = ["serde-human-readable"] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
 url = { workspace = true }
-validator = { version = "0.20", features = ["derive"] }
+validator = { version = "0.21", features = ["derive"] }
 wapc = "2.1"
 wasi-common = { workspace = true }
-wasmparser = "0.253"
+wasmparser = "0.254"
 wasmtime-provider = { version = "2.21.0", features = ["cache"] }
 wasmtime-wasi = { workspace = true }
 webpki-roots = "1"
