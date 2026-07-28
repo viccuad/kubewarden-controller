@@ -46,8 +46,8 @@ metadata:
   name: kubewarden-not-signed-images
 spec:
   images:
-    - name: ghcr.io/kyverno/policy-reporter-ui:2.6.1
-    - name: ghcr.io/kyverno/policy-reporter:3.8.1
+    - name: ghcr.io/kyverno/policy-reporter-ui:2.7.0
+    - name: ghcr.io/kyverno/policy-reporter:3.9.0
     - name: ghcr.io/rancher/kuberlr-kubectl:v8.1.1
 ---
 apiVersion: content.hauler.cattle.io/v1
@@ -60,7 +60,7 @@ spec:
       repoURL: https://charts.kubewarden.io
       version: 6.0.0
     - name: policy-reporter
-      version: 3.8.1
+      version: 3.9.1
       repoURL: https://kyverno.github.io/policy-reporter
     - name: openreports
       version: 0.2.1
