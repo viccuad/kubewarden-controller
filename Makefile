@@ -181,7 +181,7 @@ check-questions: ## Check that questions.yaml is in sync with values.yaml.
 	go run ./hack/check-questions
 
 .PHONY: check-generate
-check-generate: generate check-questions
+check-generate: check-questions generate
 	@./hack/check-for-auto-generated-changes.sh
 
 ##@ Dependencies
