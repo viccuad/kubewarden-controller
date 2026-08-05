@@ -273,15 +273,15 @@ func TestGetPoliciesByNamespace(t *testing.T) {
 			}: {
 				{
 					Policy:       clusterAdmissionPolicy1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/clusterwide-clusterAdmissionPolicy1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.cap.clusterAdmissionPolicy1"},
 				},
 				{
 					Policy:       admissionPolicy1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/namespaced-test-admissionPolicy1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.ap.test.admissionPolicy1"},
 				},
 				{
 					Policy:       admissionPolicyGroup1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/namespaced-group-test-admissionPolicyGroup1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.apg.test.admissionPolicyGroup1"},
 				},
 			},
 			{
@@ -291,15 +291,15 @@ func TestGetPoliciesByNamespace(t *testing.T) {
 			}: {
 				{
 					Policy:       clusterAdmissionPolicy1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/clusterwide-clusterAdmissionPolicy1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.cap.clusterAdmissionPolicy1"},
 				},
 				{
 					Policy:       clusterAdmissionPolicyGroup1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/clusterwide-group-clusterAdmissionPolicyGroup1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.capg.clusterAdmissionPolicyGroup1"},
 				},
 				{
 					Policy:       admissionPolicy1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/namespaced-test-admissionPolicy1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.ap.test.admissionPolicy1"},
 				},
 			},
 		},
@@ -483,19 +483,19 @@ func TestGetClusterWidePolicies(t *testing.T) {
 			}: {
 				{
 					Policy:       clusterAdmissionPolicy1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/clusterwide-clusterAdmissionPolicy1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.cap.clusterAdmissionPolicy1"},
 				},
 				{
 					Policy:       clusterAdmissionPolicy2,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/clusterwide-clusterAdmissionPolicy2"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.cap.clusterAdmissionPolicy2"},
 				},
 				{
 					Policy:       clusterAdmissionPolicy3,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/clusterwide-clusterAdmissionPolicy3"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.cap.clusterAdmissionPolicy3"},
 				},
 				{
 					Policy:       clusterAdmissionPolicyGroup1,
-					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/clusterwide-group-clusterAdmissionPolicyGroup1"},
+					PolicyServer: &url.URL{Scheme: "https", Host: "policy-server-default.kubewarden.svc:443", Path: "/audit/kw.capg.clusterAdmissionPolicyGroup1"},
 				},
 			},
 		},

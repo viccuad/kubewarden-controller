@@ -249,7 +249,9 @@ func (r *DefaultsApplierReconciler) cleanupStale(ctx context.Context, desired se
 
 			if !desired.Has(rk) {
 				r.Log.Info("Deleting stale managed resource", "resource", rk)
-				if deleteErr := r.Delete(ctx, item); deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
+				itemUID := item.GetUID()
+				deleteErr := r.Delete(ctx, item, client.Preconditions{UID: &itemUID})
+				if deleteErr != nil && !apierrors.IsNotFound(deleteErr) && !apierrors.IsConflict(deleteErr) {
 					return fmt.Errorf("failed to delete stale resource %s: %w", rk, deleteErr)
 				}
 			}

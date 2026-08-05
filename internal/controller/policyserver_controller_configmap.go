@@ -149,6 +149,11 @@ func (r *PolicyServerReconciler) reconcilePolicyServerConfigMap(
 // Function used to update the ConfigMap data when creating or updating it.
 func (r *PolicyServerReconciler) updateConfigMapData(cfg *corev1.ConfigMap, policyServer *policiesv1.PolicyServer, policies []policiesv1.Policy) error {
 	policiesMap := buildPoliciesMap(policies, policyServer)
+	// Serve each policy also under its legacy unique name, so that webhook
+	// configurations created with the legacy names by previous versions of
+	// the controller keep working until they are migrated. This migration
+	// code can be safely removed after a few releases.
+	addLegacyPolicyEntries(policiesMap, policies, r.Log)
 	policiesYML, err := json.Marshal(policiesMap)
 	if err != nil {
 		return fmt.Errorf("cannot marshal policies: %w", err)

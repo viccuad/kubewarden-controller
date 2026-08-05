@@ -208,7 +208,7 @@ func TestNewPolicyReportResult(t *testing.T) {
 			errored: false,
 			expectedResult: &wgpolicy.PolicyReportResult{
 				Source:          policyReportSource,
-				Policy:          "clusterwide-policy-name",
+				Policy:          "kw.cap.policy-name",
 				Severity:        severityLow,
 				Result:          statusPass,
 				Timestamp:       now,
@@ -250,7 +250,7 @@ func TestNewPolicyReportResult(t *testing.T) {
 			errored: false,
 			expectedResult: &wgpolicy.PolicyReportResult{
 				Source:          policyReportSource,
-				Policy:          "namespaced-policy-namespace-policy-name",
+				Policy:          "kw.ap.policy-namespace.policy-name",
 				Severity:        severityCritical,
 				Result:          statusFail,
 				Timestamp:       now,
@@ -297,7 +297,7 @@ func TestNewPolicyReportResult(t *testing.T) {
 			errored: true,
 			expectedResult: &wgpolicy.PolicyReportResult{
 				Source:          policyReportSource,
-				Policy:          "namespaced-policy-namespace-policy-name",
+				Policy:          "kw.ap.policy-namespace.policy-name",
 				Severity:        severityInfo,
 				Result:          statusError,
 				Timestamp:       now,

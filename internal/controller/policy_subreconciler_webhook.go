@@ -10,6 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	policiesv1 "github.com/kubewarden/adm-controller/api/policies/v1"
@@ -94,8 +95,9 @@ func (r *policySubReconciler) reconcileValidatingWebhookConfigurationDeletion(ct
 	webhook := admissionregistrationv1.ValidatingWebhookConfiguration{}
 	err := r.Get(ctx, types.NamespacedName{Name: admissionPolicy.GetUniqueName()}, &webhook)
 	if err == nil {
-		if err = r.Delete(ctx, &webhook); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("cannot delete validating webhook: %w", err)
+		deleteErr := r.Delete(ctx, &webhook, client.Preconditions{UID: &webhook.UID})
+		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) && !apierrors.IsConflict(deleteErr) {
+			return fmt.Errorf("cannot delete validating webhook: %w", deleteErr)
 		}
 	} else if !apierrors.IsNotFound(err) {
 		return fmt.Errorf("cannot retrieve validating webhook: %w", err)
@@ -180,8 +182,9 @@ func (r *policySubReconciler) reconcileMutatingWebhookConfigurationDeletion(ctx 
 	webhook := admissionregistrationv1.MutatingWebhookConfiguration{}
 	err := r.Get(ctx, types.NamespacedName{Name: admissionPolicy.GetUniqueName()}, &webhook)
 	if err == nil {
-		if err = r.Delete(ctx, &webhook); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("cannot delete mutating webhook: %w", err)
+		deleteErr := r.Delete(ctx, &webhook, client.Preconditions{UID: &webhook.UID})
+		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) && !apierrors.IsConflict(deleteErr) {
+			return fmt.Errorf("cannot delete mutating webhook: %w", deleteErr)
 		}
 	} else if !apierrors.IsNotFound(err) {
 		return fmt.Errorf("cannot retrieve mutating webhook: %w", err)
