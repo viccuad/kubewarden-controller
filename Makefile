@@ -176,8 +176,12 @@ manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefin
 generate-chart: ## Generate Helm chart values schema.
 	$(HELM_SCHEMA) --values charts/admission-controller/values.yaml --output charts/admission-controller/values.schema.json
 
+.PHONY: check-questions
+check-questions: ## Check that questions.yaml is in sync with values.yaml.
+	go run ./hack/check-questions
+
 .PHONY: check-generate
-check-generate: generate
+check-generate: generate check-questions
 	@./hack/check-for-auto-generated-changes.sh
 
 ##@ Dependencies
