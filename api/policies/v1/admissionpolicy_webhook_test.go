@@ -14,6 +14,7 @@ limitations under the License.
 package v1
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -134,6 +135,19 @@ func TestAdmissionPolicyValidateCreateWithErrors(t *testing.T) {
 	assert.Empty(t, warnings)
 }
 
+func TestAdmissionPolicyValidateCreateRejectsOverlongName(t *testing.T) {
+	validator := admissionPolicyValidator{logger: logr.Discard()}
+	policy := NewAdmissionPolicyFactory().
+		WithName(strings.Repeat("a", 250)).
+		WithNamespace("team").
+		Build()
+
+	warnings, err := validator.ValidateCreate(t.Context(), policy)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "characters long")
+	assert.Empty(t, warnings)
+}
+
 func TestAdmissionPolicyValidateUpdate(t *testing.T) {
 	validator := admissionPolicyValidator{logger: logr.Discard()}
 	oldPolicy := NewAdmissionPolicyFactory().Build()
@@ -175,6 +189,28 @@ func TestAdmissionPolicyValidateUpdateWithErrors(t *testing.T) {
 
 	warnings, err = validator.ValidateUpdate(t.Context(), newPolicy, oldPolicy)
 	require.Error(t, err)
+	assert.Empty(t, warnings)
+}
+
+func TestAdmissionPolicyValidateUpdateAllowsPreExistingOverlongName(t *testing.T) {
+	// Name and namespace are immutable, so an overlong policy that somehow
+	// already exists (e.g. created by an older, less strict controller
+	// version) must remain updatable.
+	validator := admissionPolicyValidator{logger: logr.Discard()}
+	overlongName := strings.Repeat("a", 250)
+	oldPolicy := NewAdmissionPolicyFactory().
+		WithName(overlongName).
+		WithNamespace("team").
+		WithMode("monitor").
+		Build()
+	newPolicy := NewAdmissionPolicyFactory().
+		WithName(overlongName).
+		WithNamespace("team").
+		WithMode("protect").
+		Build()
+
+	warnings, err := validator.ValidateUpdate(t.Context(), oldPolicy, newPolicy)
+	require.NoError(t, err)
 	assert.Empty(t, warnings)
 }
 

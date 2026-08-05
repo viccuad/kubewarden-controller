@@ -1877,7 +1877,7 @@ var _ = Describe("PolicyServer controller", func() {
 					},
 					Webhooks: []admissionregistrationv1.ValidatingWebhook{
 						{
-							Name:                    policy.GetUniqueName() + ".kubewarden.admission",
+							Name:                    policy.GetUniqueName() + constants.WebhookNameSuffix,
 							AdmissionReviewVersions: []string{"v1"},
 							SideEffects: func() *admissionregistrationv1.SideEffectClass {
 								s := admissionregistrationv1.SideEffectClassNone

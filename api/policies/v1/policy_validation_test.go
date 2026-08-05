@@ -15,13 +15,17 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	"github.com/kubewarden/adm-controller/internal/constants"
 )
 
 func TestSensitiveResourceMatchRule(t *testing.T) {
@@ -651,6 +655,65 @@ func TestValidateTimeoutSeconds(t *testing.T) {
 					require.True(t, found, "expected error containing %q, got %v", expected, errs)
 				}
 			}
+		})
+	}
+}
+
+// TestValidateUniqueNameLength verifies that a policy whose unique name,
+// combined with the webhook entry name suffix, would exceed the Kubernetes
+// DNS1123 subdomain length limit is rejected, for all four policy kinds.
+// A policy at exactly the maximum allowed length must be accepted.
+func TestValidateUniqueNameLength(t *testing.T) {
+	tests := []struct {
+		name        string
+		buildPolicy func(policyName string) Policy
+	}{
+		{
+			name: "AdmissionPolicy",
+			buildPolicy: func(policyName string) Policy {
+				return NewAdmissionPolicyFactory().WithName(policyName).WithNamespace("team").Build()
+			},
+		},
+		{
+			name: "AdmissionPolicyGroup",
+			buildPolicy: func(policyName string) Policy {
+				return NewAdmissionPolicyGroupFactory().WithName(policyName).WithNamespace("team").Build()
+			},
+		},
+		{
+			name: "ClusterAdmissionPolicy",
+			buildPolicy: func(policyName string) Policy {
+				return NewClusterAdmissionPolicyFactory().WithName(policyName).Build()
+			},
+		},
+		{
+			name: "ClusterAdmissionPolicyGroup",
+			buildPolicy: func(policyName string) Policy {
+				return NewClusterAdmissionPolicyGroupFactory().WithName(policyName).Build()
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// The unique name is built as some fixed overhead (kind token,
+			// optional namespace, dots) plus the policy name verbatim. Probe
+			// that overhead with a throwaway 1-character name, then derive
+			// the exact name length at which the webhook entry name reaches
+			// the DNS1123 subdomain length limit.
+			probe := tc.buildPolicy("x")
+			overhead := len(probe.GetUniqueName()) - len(probe.GetName())
+			maxNameLength := validation.DNS1123SubdomainMaxLength - len(constants.WebhookNameSuffix) - overhead
+			require.Positive(t, maxNameLength, "test setup error: computed a non-positive max name length")
+
+			atLimit := tc.buildPolicy(strings.Repeat("a", maxNameLength))
+			require.Nil(t, validateUniqueNameLength(atLimit),
+				"a policy name at the maximum allowed length should be accepted")
+
+			overLimit := tc.buildPolicy(strings.Repeat("a", maxNameLength+1))
+			err := validateUniqueNameLength(overLimit)
+			require.NotNil(t, err, "a policy name one character over the limit should be rejected")
+			require.Contains(t, err.Error(), fmt.Sprintf("at most %d characters long", maxNameLength))
 		})
 	}
 }
