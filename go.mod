@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/go-logr/logr v1.4.4
+	// CEL needs to be pinned to the same version as the one used by the k8s.io/apiserver package
 	github.com/google/cel-go v0.26.0
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.32.0
@@ -27,9 +28,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
-// CEL needs to be pinned to the same version as the one used by the k8s.io/apiserver package
-replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
-
 replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.5.1
 
 replace sigs.k8s.io/wg-policy-prototypes => sigs.k8s.io/wg-policy-prototypes v0.0.0-20230505033312-51c21979086a
@@ -37,7 +35,7 @@ replace sigs.k8s.io/wg-policy-prototypes => sigs.k8s.io/wg-policy-prototypes v0.
 require (
 	cel.dev/expr v0.25.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
