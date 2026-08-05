@@ -205,6 +205,37 @@ pub fn build_latest_verification_config(
             "config is missing signatures in both allOf and anyOff list".to_owned(),
         ));
     }
+
+    // If the user set the allOf or anyOf key, the list must have some value. Empty list is not
+    // allowed. This rule should be apply to both fields.
+    if let Some(ref all_of) = config.all_of
+        && all_of.is_empty()
+    {
+        return Err(VerifyError::InvalidVerifyFileError(
+            "config's allOf list is empty".to_owned(),
+        ));
+    }
+
+    if let Some(ref any_of) = config.any_of {
+        if any_of.signatures.is_empty() {
+            return Err(VerifyError::InvalidVerifyFileError(
+                "config's anyOf.signatures list is empty".to_owned(),
+            ));
+        }
+        if any_of.minimum_matches == 0 {
+            return Err(VerifyError::InvalidVerifyFileError(
+                "config's anyOf.minimumMatches must be greater than 0".to_owned(),
+            ));
+        }
+        if usize::from(any_of.minimum_matches) > any_of.signatures.len() {
+            return Err(VerifyError::InvalidVerifyFileError(format!(
+                "config's anyOf.minimumMatches ({}) cannot be greater than the number of signatures ({})",
+                any_of.minimum_matches,
+                any_of.signatures.len()
+            )));
+        }
+    }
+
     Ok(config)
 }
 
@@ -284,6 +315,84 @@ mod tests {
                 _ => panic!("not the expected versioned config"),
             },
             _ => panic!("got an invalid config"),
+        }
+    }
+
+    #[test]
+    fn test_reject_empty_all_of() {
+        let config = r#"---
+    apiVersion: v1
+
+    allOf: []
+    "#;
+        match build_latest_verification_config(config) {
+            Err(VerifyError::InvalidVerifyFileError(msg)) => {
+                assert_eq!(msg, "config's allOf list is empty")
+            }
+            _ => panic!("expected an error"),
+        }
+    }
+
+    #[test]
+    fn test_reject_empty_any_of_signatures() {
+        let config = r#"---
+    apiVersion: v1
+
+    anyOf:
+      signatures: []
+    "#;
+        match build_latest_verification_config(config) {
+            Err(VerifyError::InvalidVerifyFileError(msg)) => {
+                assert_eq!(msg, "config's anyOf.signatures list is empty")
+            }
+            _ => panic!("expected an error"),
+        }
+    }
+
+    #[test]
+    fn test_reject_zero_minimum_matches() {
+        let config = r#"---
+    apiVersion: v1
+
+    anyOf:
+      minimumMatches: 0
+      signatures:
+        - kind: genericIssuer
+          issuer: https://token.actions.githubusercontent.com
+          subject:
+             equal: https://github.com/kubewarden/policy-secure-pod-images/.github/workflows/release.yml@refs/heads/main
+    "#;
+        match build_latest_verification_config(config) {
+            Err(VerifyError::InvalidVerifyFileError(msg)) => {
+                assert_eq!(msg, "config's anyOf.minimumMatches must be greater than 0")
+            }
+            _ => panic!("expected an error"),
+        }
+    }
+
+    #[test]
+    fn test_reject_minimum_matches_exceeds_signatures() {
+        let config = r#"---
+    apiVersion: v1
+
+    anyOf:
+      minimumMatches: 3
+      signatures:
+        - kind: genericIssuer
+          issuer: https://token.actions.githubusercontent.com
+          subject:
+             equal: https://github.com/kubewarden/policy-secure-pod-images/.github/workflows/release.yml@refs/heads/main
+        - kind: genericIssuer
+          issuer: https://token.actions.githubusercontent.com
+          subject:
+             urlPrefix: https://github.com/kubewarden
+    "#;
+        match build_latest_verification_config(config) {
+            Err(VerifyError::InvalidVerifyFileError(msg)) => assert_eq!(
+                msg,
+                "config's anyOf.minimumMatches (3) cannot be greater than the number of signatures (2)"
+            ),
+            _ => panic!("expected an error"),
         }
     }
 
