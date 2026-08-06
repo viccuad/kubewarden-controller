@@ -50,6 +50,11 @@ There is also:
 
 - Community-created [Homebrew 🍺 formula for kwctl](https://formulae.brew.sh/formula/kwctl)
 - Community-created [AUR 🐧 package](https://aur.archlinux.org/packages/kwctl-bin)
+- Source install with Cargo. You can pull the latest version from main, or chose a specific git tag.
+
+```bash
+cargo install --git https://github.com/kubewarden/adm-controller kwctl [--tag <desired-version>]
+```
 
 ## Usage
 
