@@ -44,7 +44,7 @@ containers.
 ## Install
 
 Built binaries for `Linux x86_64`, `Windows x86_64`, `MacOS x86_64` and `MacOS
-aarch64 (M1)` are available in [GH Releases](https://github.com/kubewarden/kwctl/releases).
+aarch64 (M1)` are available in [GH Releases](github.com/kubewarden/adm-controller/releases) (check the `kwctl-${os}-${arch}.zip` files).
 
 There is also:
 
