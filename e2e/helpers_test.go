@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/e2e-framework/klient/k8s"
 	"sigs.k8s.io/e2e-framework/klient/wait"
 	"sigs.k8s.io/e2e-framework/klient/wait/conditions"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
@@ -71,6 +72,18 @@ func createPolicyServerAndWaitForItsService(ctx context.Context, cfg *envconf.Co
 		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: namespace}},
 		appsv1.DeploymentAvailable,
 		corev1.ConditionTrue,
+	), wait.WithTimeout(testTimeout), wait.WithInterval(testPollInterval))
+}
+
+// waitForAdmissionPolicyActive waits until the given AdmissionPolicy
+// transitions to the active status.
+func waitForAdmissionPolicyActive(cfg *envconf.Config, policyName, policyNamespace string) error {
+	return wait.For(conditions.New(cfg.Client().Resources()).ResourceMatch(
+		&policiesv1.AdmissionPolicy{ObjectMeta: metav1.ObjectMeta{Name: policyName, Namespace: policyNamespace}},
+		func(object k8s.Object) bool {
+			p := object.(*policiesv1.AdmissionPolicy)
+			return p.Status.PolicyStatus == policiesv1.PolicyStatusActive
+		},
 	), wait.WithTimeout(testTimeout), wait.WithInterval(testPollInterval))
 }
 

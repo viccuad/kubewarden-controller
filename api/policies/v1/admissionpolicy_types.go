@@ -154,8 +154,13 @@ func (r *AdmissionPolicy) GetPolicyServer() string {
 	return r.Spec.PolicyServer
 }
 
+// GetUniqueName returns the cluster-wide unique identity of the policy.
+// The `.` delimiter guarantees that two distinct policies can never collide:
+// namespaces cannot contain dots, and the kind token (`ap`) is dot-free and
+// unique per policy kind. Policy names may contain dots, but they are the
+// trailing remainder of the string, so the encoding stays unambiguous.
 func (r *AdmissionPolicy) GetUniqueName() string {
-	return "namespaced-" + r.Namespace + "-" + r.Name
+	return "kw.ap." + r.Namespace + "." + r.Name
 }
 
 func (r *AdmissionPolicy) GetContextAwareResources() []ContextAwareResource {

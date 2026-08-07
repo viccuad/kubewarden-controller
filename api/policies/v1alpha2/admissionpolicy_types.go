@@ -133,6 +133,8 @@ func (r *AdmissionPolicy) GetPolicyServer() string {
 	return r.Spec.PolicyServer
 }
 
+// GetUniqueName returns the cluster-wide unique identity of the policy.
+// See the policies/v1 implementation for details about the encoding.
 func (r *AdmissionPolicy) GetUniqueName() string {
-	return "namespaced-" + r.Namespace + "-" + r.Name
+	return "kw.ap." + r.Namespace + "." + r.Name
 }

@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -417,6 +418,15 @@ var _ = Describe("PolicyServer controller", func() {
 				Message:               clusterPolicyGroup.GetMessage(),
 				TimeoutEvalSeconds:    &timeoutEvalSeconds,
 			}
+
+			// During the migration away from the legacy unique names, the
+			// configuration also serves every policy under its legacy name.
+			addLegacyPolicyEntries(policiesMap, []policiesv1.Policy{
+				admissionPolicy,
+				clusterAdmissionPolicy,
+				admissionPolicyGroup,
+				clusterPolicyGroup,
+			}, logr.Discard())
 
 			policies, err := json.Marshal(policiesMap)
 			Expect(err).ToNot(HaveOccurred())
@@ -1867,7 +1877,7 @@ var _ = Describe("PolicyServer controller", func() {
 					},
 					Webhooks: []admissionregistrationv1.ValidatingWebhook{
 						{
-							Name:                    policy.GetUniqueName() + ".kubewarden.admission",
+							Name:                    policy.GetUniqueName() + constants.WebhookNameSuffix,
 							AdmissionReviewVersions: []string{"v1"},
 							SideEffects: func() *admissionregistrationv1.SideEffectClass {
 								s := admissionregistrationv1.SideEffectClassNone

@@ -231,8 +231,11 @@ func (r *ClusterAdmissionPolicyGroup) GetPolicyServer() string {
 	return r.Spec.PolicyServer
 }
 
+// GetUniqueName returns the cluster-wide unique identity of the policy.
+// The `.` delimiter and the dot-free, kind-unique token (`capg`) guarantee
+// that two distinct policies can never collide, regardless of their kind.
 func (r *ClusterAdmissionPolicyGroup) GetUniqueName() string {
-	return "clusterwide-group-" + r.Name
+	return "kw.capg." + r.Name
 }
 
 func (r *ClusterAdmissionPolicyGroup) GetContextAwareResources() []ContextAwareResource {

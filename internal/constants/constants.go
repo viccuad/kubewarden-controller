@@ -91,6 +91,13 @@ const (
 	WebhookConfigurationPolicyNameAnnotationKey      = "kubewardenPolicyName"
 	WebhookConfigurationPolicyNamespaceAnnotationKey = "kubewardenPolicyNamespace"
 
+	// WebhookNameSuffix is appended to a policy's unique name to build the
+	// name of the individual webhook entry inside a Mutating/Validating
+	// WebhookConfiguration. The resulting string cannot exceed the
+	// DNS1123Subdomain length limit, which bounds how long a policy's
+	// unique name is allowed to be.
+	WebhookNameSuffix = ".kubewarden.admission"
+
 	NamespacePolicyScope = "namespace"
 	ClusterPolicyScope   = "cluster"
 
