@@ -98,7 +98,7 @@ backon = { version = "1.6", features = ["tokio-sleep"] }
 hyper = { version = "1" }
 rcgen = { version = "0.14", features = ["x509-parser"] }
 rstest = { workspace = true }
-serial_test = "3.3"
+serial_test = "4.0"
 tempfile = { workspace = true }
 test-context = "0.5"
 test-log = "0.2"
