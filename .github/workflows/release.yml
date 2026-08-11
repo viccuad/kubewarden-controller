@@ -73,6 +73,7 @@ jobs:
             runner: ubuntu-24.04-arm
             platform: linux/arm64
     permissions:
+      contents: read # Checkout private forks
       packages: write # Pushing images to ghcr.io
       id-token: write # Signing images with cosign
     runs-on: ${{ matrix.runner }}
