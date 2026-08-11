@@ -11,7 +11,6 @@ jobs:
     name: Scorecards analysis
     runs-on: ubuntu-latest
     permissions:
-      contents: read # Checkout private forks
       # Needed to upload the results to code-scanning dashboard.
       security-events: write
       # Used to receive a badge. (Upcoming feature)
