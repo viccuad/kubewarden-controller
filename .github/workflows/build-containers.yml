@@ -41,7 +41,7 @@ jobs:
           arch: ${{ matrix.arch }}
           platform: ${{ matrix.platform }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          namespace: adm-controller
+          namespace: ${{ github.event.repository.name }}
 
   merge:
     runs-on: ubuntu-latest
@@ -74,4 +74,4 @@ jobs:
           tag: ${{ env.TAG_NAME }}
           arch: amd64,arm64
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          namespace: adm-controller
+          namespace: ${{ github.event.repository.name }}
