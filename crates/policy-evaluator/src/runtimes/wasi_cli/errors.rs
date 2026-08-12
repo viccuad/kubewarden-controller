@@ -32,17 +32,10 @@ pub enum WasiRuntimeError {
     #[error("'mem' export cannot be converted into a Memory instance")]
     WasiMemExportCannotConvert,
 
-    #[error("cannot build WasiCtxBuilder: {0}")]
-    WasiCtxBuilder(#[source] wasi_common::StringArrayError),
-
     #[error("host_call: cannot convert bd to UTF8: {0}")]
     WasiMemOpToUtF8(#[source] std::str::Utf8Error),
 
     // corresponds to a PoisonError, whose error message is not particularly useful anyways
-    #[error("host_call: cannot write to STDIN")]
-    WasiCannotWriteStdin(),
-
-    // corresponds to a PoisonError, whose error message is not particularly useful anyways
-    #[error("host_call: cannot get write access to STDIN")]
-    WasiWriteAccessStdin(),
+    #[error("cannot acquire lock on WasiPipe buffer: lock is poisoned")]
+    WasiPipePoisonedLock,
 }

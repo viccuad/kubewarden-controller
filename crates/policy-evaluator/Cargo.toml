@@ -12,7 +12,9 @@ version = "0.32.0"
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = "0.1"
 base64 = { workspace = true }
+bytes = "1"
 burrego = { path = "../burrego" }
 cached = { version = "2.0", features = ["async_tokio_rt_multi_thread"] }
 chrono = { version = "0.4", default-features = false }
@@ -51,9 +53,8 @@ tracing = { workspace = true }
 url = { workspace = true }
 validator = { version = "0.21", features = ["derive"] }
 wapc = "2.1"
-wasi-common = { workspace = true }
-wasmparser = "0.255"
-wasmtime-provider = { version = "2.21.0", features = ["cache"] }
+wasmparser = "0.256"
+wasmtime-provider = { version = "2.23.0", features = ["cache"] }
 wasmtime-wasi = { workspace = true }
 webpki-roots = "1"
 
@@ -105,6 +106,7 @@ test-log = "0.2"
 testcontainers = { version = "0.28", default-features = false, features = [
   "aws-lc-rs",
 ] }
+tokio = { workspace = true, features = ["io-util", "macros"] }
 tower-test = "0.4"
 # This is required to have reqwest built using the `rustls-tls-native-roots`
 # feature across all the transitive dependencies of policy-fetcher

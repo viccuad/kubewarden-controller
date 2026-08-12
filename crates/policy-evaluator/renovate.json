@@ -5,7 +5,7 @@
   "packageRules": [
     {
       "description": "Update all wasmtime packages together",
-      "matchPackageNames": ["wasmtime-wasi", "wasmtime", "wasi-common"],
+      "matchPackageNames": ["wasmtime-wasi", "wasmtime"],
       "groupName": "wasmtime"
     }
   ]
