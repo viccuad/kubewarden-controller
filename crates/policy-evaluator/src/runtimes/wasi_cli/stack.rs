@@ -1,25 +1,18 @@
-use std::{
-    io::Cursor,
-    sync::{Arc, RwLock},
-};
-
 use tracing::debug;
-use wasi_common::{
-    WasiCtx,
-    pipe::{ReadPipe, WritePipe},
-    sync::WasiCtxBuilder,
-};
+use wasmtime_wasi::{I32Exit, WasiCtxBuilder, p1::WasiP1Ctx, p2::pipe::MemoryOutputPipe};
 
 use crate::{
     evaluation_context::EvaluationContext,
     runtimes::wasi_cli::{errors::WasiRuntimeError, stack_pre::StackPre, wasi_pipe::WasiPipe},
 };
 
+use std::sync::Arc;
+
 const EXIT_SUCCESS: i32 = 0;
 
 pub(crate) struct Context {
-    pub(crate) wasi_ctx: WasiCtx,
-    pub(crate) stdin_pipe: Arc<RwLock<WasiPipe>>,
+    pub(crate) wasi_ctx: WasiP1Ctx,
+    pub(crate) stdin_pipe: WasiPipe,
     pub(crate) eval_ctx: Arc<EvaluationContext>,
 }
 
@@ -47,19 +40,44 @@ impl Stack {
         input: &[u8],
         args: &[&str],
     ) -> std::result::Result<RunResult, WasiRuntimeError> {
-        let stdout_pipe = WritePipe::new_in_memory();
-        let stderr_pipe = WritePipe::new_in_memory();
-        let stdin_pipe: Arc<RwLock<WasiPipe>> = Arc::new(RwLock::new(WasiPipe::new(input)));
+        if tokio::runtime::Handle::try_current().is_ok() {
+            // The synchronous WASI support provided by wasmtime-wasi is
+            // implemented on top of its async support: each WASI call invokes
+            // `tokio::runtime::Handle::block_on`, which panics when executed
+            // on a thread that is driving async tasks (e.g. a tokio worker
+            // thread).
+            // To be safe regardless of the calling context, run the evaluation
+            // on a dedicated thread. This thread has no tokio context, causing
+            // wasmtime-wasi to drive the WASI calls using its own internal
+            // tokio runtime.
+            std::thread::scope(|scope| {
+                scope
+                    .spawn(|| self.run_internal(input, args))
+                    .join()
+                    .unwrap_or_else(|err| std::panic::resume_unwind(err))
+            })
+        } else {
+            self.run_internal(input, args)
+        }
+    }
+
+    fn run_internal(
+        &self,
+        input: &[u8],
+        args: &[&str],
+    ) -> std::result::Result<RunResult, WasiRuntimeError> {
+        let stdout_pipe = MemoryOutputPipe::new(usize::MAX);
+        let stderr_pipe = MemoryOutputPipe::new(usize::MAX);
+        let stdin_pipe = WasiPipe::new(input);
 
         let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
 
         let wasi_ctx = WasiCtxBuilder::new()
             .args(&args)
-            .map_err(WasiRuntimeError::WasiCtxBuilder)?
-            .stdin(Box::new(ReadPipe::from_shared(stdin_pipe.clone())))
-            .stdout(Box::new(stdout_pipe.clone()))
-            .stderr(Box::new(stderr_pipe.clone()))
-            .build();
+            .stdin(stdin_pipe.clone())
+            .stdout(stdout_pipe.clone())
+            .stderr(stderr_pipe.clone())
+            .build_p1();
         let ctx = Context {
             wasi_ctx,
             stdin_pipe,
@@ -75,16 +93,16 @@ impl Stack {
             .map_err(WasiRuntimeError::WasmMissingStartFn)?;
         let evaluation_result = start_fn.call(&mut store, ());
 
-        // Dropping the store, this is no longer needed, plus it's keeping
-        // references to the WritePipe(s) that we need exclusive access to.
+        // Dropping the store, this is no longer needed and we want to make
+        // sure the guest is done writing to the output pipes.
         drop(store);
 
-        let stderr = pipe_to_string("stderr", stderr_pipe)?.trim().to_string();
+        let stderr = pipe_to_string("stderr", &stderr_pipe)?.trim().to_string();
 
         if let Err(err) = evaluation_result {
-            if let Some(exit_error) = err.downcast_ref::<wasi_common::I32Exit>() {
+            if let Some(exit_error) = err.downcast_ref::<I32Exit>() {
                 if exit_error.0 == EXIT_SUCCESS {
-                    let stdout = pipe_to_string("stdout", stdout_pipe)?;
+                    let stdout = pipe_to_string("stdout", &stdout_pipe)?;
                     return Ok(RunResult { stdout, stderr });
                 } else {
                     debug!(
@@ -100,26 +118,18 @@ impl Stack {
             return Err(WasiRuntimeError::WasiEvaluation { stderr, error: err });
         }
 
-        let stdout = pipe_to_string("stdout", stdout_pipe)?;
+        let stdout = pipe_to_string("stdout", &stdout_pipe)?;
         Ok(RunResult { stdout, stderr })
     }
 }
 
 fn pipe_to_string(
     name: &str,
-    pipe: WritePipe<Cursor<Vec<u8>>>,
+    pipe: &MemoryOutputPipe,
 ) -> std::result::Result<String, WasiRuntimeError> {
-    match pipe.try_into_inner() {
-        Ok(cursor) => {
-            let buf = cursor.into_inner();
-            String::from_utf8(buf).map_err(|e| WasiRuntimeError::PipeConversion {
-                name: name.to_string(),
-                error: format!("Cannot convert buffer to UTF8 string: {e}"),
-            })
-        }
-        Err(_) => Err(WasiRuntimeError::PipeConversion {
-            name: name.to_string(),
-            error: "cannot convert pipe into inner".to_string(),
-        }),
-    }
+    let buf = pipe.contents();
+    String::from_utf8(buf.to_vec()).map_err(|e| WasiRuntimeError::PipeConversion {
+        name: name.to_string(),
+        error: format!("Cannot convert buffer to UTF8 string: {e}"),
+    })
 }

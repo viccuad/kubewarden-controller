@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use wasmtime::{AsContext, Engine, InstancePre, Linker, Memory, Module, StoreContext};
 
 use crate::runtimes::{
@@ -20,7 +18,7 @@ pub(crate) struct StackPre {
 impl StackPre {
     pub(crate) fn new(engine: Engine, module: Module) -> Result<Self> {
         let mut linker = Linker::<Context>::new(&engine);
-        wasi_common::sync::add_to_linker(&mut linker, |c: &mut Context| &mut c.wasi_ctx)
+        wasmtime_wasi::p1::add_to_linker_sync(&mut linker, |c: &mut Context| &mut c.wasi_ctx)
             .map_err(WasiRuntimeError::WasmLinkerError)?;
         add_host_call_to_linker(&mut linker)?;
 
@@ -77,7 +75,7 @@ fn add_host_call_to_linker(linker: &mut wasmtime::Linker<Context>) -> Result<()>
             .into_memory()
             .ok_or_else(|| WasiRuntimeError::WasiMemExportCannotConvert)?;
 
-        let stdin = caller.data().stdin_pipe.as_ref();
+        let stdin = &caller.data().stdin_pipe;
 
         let vec = get_vec_from_memory(caller.as_context(), memory, ptr, len);
         let bd_vec = get_vec_from_memory(caller.as_context(), memory, bd_ptr, bd_len);
@@ -97,12 +95,7 @@ fn add_host_call_to_linker(linker: &mut wasmtime::Linker<Context>) -> Result<()>
             Err(e) => e.to_string().as_bytes().to_owned(),
         };
 
-        let mut stdin_pipe = stdin
-            .write()
-            .map_err(|_| WasiRuntimeError::WasiWriteAccessStdin())?;
-        let _ = stdin_pipe
-            .write(&response_msg)
-            .map_err(|_| WasiRuntimeError::WasiCannotWriteStdin())?;
+        stdin.send(&response_msg)?;
         Ok(func_return_value)
     };
 

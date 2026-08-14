@@ -23,7 +23,7 @@ itertools          = { workspace = true }
 k8s-openapi        = { workspace = true }
 lazy_static        = { workspace = true }
 memchr             = "2.8"
-pem                = "3"
+pem                = "4"
 policy-evaluator   = { path = "../policy-evaluator" }
 prettytable-rs     = "^0.10"
 regex              = { workspace = true }
