@@ -1,4 +1,3 @@
-//nolint:cyclop // This is the e2e test main file, some complexity is expected here.
 package e2e
 
 import (

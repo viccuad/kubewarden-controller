@@ -205,11 +205,44 @@ pub fn build_latest_verification_config(
             "config is missing signatures in both allOf and anyOff list".to_owned(),
         ));
     }
+
+    // If the user set the allOf or anyOf key, the list must have some value. Empty list is not
+    // allowed. This rule should be apply to both fields.
+    if let Some(ref all_of) = config.all_of
+        && all_of.is_empty()
+    {
+        return Err(VerifyError::InvalidVerifyFileError(
+            "config's allOf list is empty".to_owned(),
+        ));
+    }
+
+    if let Some(ref any_of) = config.any_of {
+        if any_of.signatures.is_empty() {
+            return Err(VerifyError::InvalidVerifyFileError(
+                "config's anyOf.signatures list is empty".to_owned(),
+            ));
+        }
+        if any_of.minimum_matches == 0 {
+            return Err(VerifyError::InvalidVerifyFileError(
+                "config's anyOf.minimumMatches must be greater than 0".to_owned(),
+            ));
+        }
+        if usize::from(any_of.minimum_matches) > any_of.signatures.len() {
+            return Err(VerifyError::InvalidVerifyFileError(format!(
+                "config's anyOf.minimumMatches ({}) cannot be greater than the number of signatures ({})",
+                any_of.minimum_matches,
+                any_of.signatures.len()
+            )));
+        }
+    }
+
     Ok(config)
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
     #[test]
@@ -221,9 +254,9 @@ mod tests {
         assert!(vc.is_err());
     }
 
-    #[test]
-    fn test_deserialize_on_missing_signature() {
-        let config = r#"---
+    #[rstest]
+    #[case::missing_signature(
+        r#"---
     apiVersion: v1
 
     allOf:
@@ -232,19 +265,83 @@ mod tests {
         # missing subject
         #subject:
         #   urlPrefix: https://github.com/kubewarden/
-    "#;
-        match build_latest_verification_config(config) {
-            Err(VerifyError::InvalidVerifyFileError(msg)) => assert_eq!(
-                msg,
-                "Not a valid configuration file: missing field `subject`"
-            ),
-            _ => panic!("expected an error"),
-        }
+    "#,
+        "Not a valid configuration file: missing field `subject`"
+    )]
+    #[case::empty_all_of(
+        r#"---
+    apiVersion: v1
+
+    allOf: []
+    "#,
+        "config's allOf list is empty"
+    )]
+    #[case::empty_any_of_signatures(
+        r#"---
+    apiVersion: v1
+
+    anyOf:
+      signatures: []
+    "#,
+        "config's anyOf.signatures list is empty"
+    )]
+    #[case::empty_all_of_and_any_of_signatures(
+        r#"---
+    apiVersion: v1
+
+    allOf: []
+    anyOf:
+      signatures: []
+    "#,
+        "config's allOf list is empty"
+    )]
+    #[case::zero_minimum_matches(
+        r#"---
+    apiVersion: v1
+
+    anyOf:
+      minimumMatches: 0
+      signatures:
+        - kind: genericIssuer
+          issuer: https://token.actions.githubusercontent.com
+          subject:
+             equal: https://github.com/kubewarden/policy-secure-pod-images/.github/workflows/release.yml@refs/heads/main
+    "#,
+        "config's anyOf.minimumMatches must be greater than 0"
+    )]
+    #[case::minimum_matches_exceeds_signatures(
+        r#"---
+    apiVersion: v1
+
+    anyOf:
+      minimumMatches: 3
+      signatures:
+        - kind: genericIssuer
+          issuer: https://token.actions.githubusercontent.com
+          subject:
+             equal: https://github.com/kubewarden/policy-secure-pod-images/.github/workflows/release.yml@refs/heads/main
+        - kind: genericIssuer
+          issuer: https://token.actions.githubusercontent.com
+          subject:
+             urlPrefix: https://github.com/kubewarden
+    "#,
+        "config's anyOf.minimumMatches (3) cannot be greater than the number of signatures (2)"
+    )]
+    fn test_build_latest_verification_config_rejects_invalid_configs(
+        #[case] config: &str,
+        #[case] expected_msg: &str,
+    ) {
+        let err = build_latest_verification_config(config).expect_err("expected an error");
+        assert!(
+            matches!(err, VerifyError::InvalidVerifyFileError(_)),
+            "unexpected error variant: {err:?}"
+        );
+        assert_eq!(err.to_string(), expected_msg);
     }
 
-    #[test]
-    fn test_deserialize() {
-        let config = r#"---
+    #[rstest]
+    #[case::equal_and_url_prefix_subjects(
+        r#"---
     apiVersion: v1
 
     allOf:
@@ -256,40 +353,22 @@ mod tests {
         issuer: https://token.actions.githubusercontent.com
         subject:
            urlPrefix: https://github.com/kubewarden
-    "#;
-
-        let vc: VerificationConfig = serde_yaml::from_str(config).unwrap();
-        let signatures: Vec<Signature> = vec![
+    "#,
+        vec![
             Signature::GenericIssuer {
-                    issuer: "https://token.actions.githubusercontent.com".to_string(),
-                    subject: Subject::Equal("https://github.com/kubewarden/policy-secure-pod-images/.github/workflows/release.yml@refs/heads/main".to_string()),
-                    annotations: None
-                },
+                issuer: "https://token.actions.githubusercontent.com".to_string(),
+                subject: Subject::Equal("https://github.com/kubewarden/policy-secure-pod-images/.github/workflows/release.yml@refs/heads/main".to_string()),
+                annotations: None,
+            },
             Signature::GenericIssuer {
                 issuer: "https://token.actions.githubusercontent.com".to_string(),
                 subject: Subject::UrlPrefix(Url::parse("https://github.com/kubewarden/").unwrap()),
                 annotations: None,
-            }
-        ];
-
-        match vc {
-            VerificationConfig::Versioned(versioned) => match versioned {
-                VersionedVerificationConfig::V1(v1) => {
-                    let expected = VerificationConfigV1 {
-                        all_of: Some(signatures),
-                        any_of: None,
-                    };
-                    assert_eq!(v1, expected);
-                }
-                _ => panic!("not the expected versioned config"),
             },
-            _ => panic!("got an invalid config"),
-        }
-    }
-
-    #[test]
-    fn test_sanitize_url_prefix() {
-        let config = r#"---
+        ]
+    )]
+    #[case::url_prefix_sanitized_with_and_without_trailing_slash(
+        r#"---
     apiVersion: v1
 
     allOf:
@@ -301,9 +380,8 @@ mod tests {
         issuer: https://yourdomain.com/oauth2
         subject:
            urlPrefix: https://github.com/kubewarden/ # should deserialize path to kubewarden/
-    "#;
-        let vc: VerificationConfig = serde_yaml::from_str(config).unwrap();
-        let signatures: Vec<Signature> = vec![
+    "#,
+        vec![
             Signature::GenericIssuer {
                 issuer: "https://token.actions.githubusercontent.com".to_string(),
                 subject: Subject::UrlPrefix(Url::parse("https://github.com/kubewarden/").unwrap()),
@@ -314,20 +392,25 @@ mod tests {
                 subject: Subject::UrlPrefix(Url::parse("https://github.com/kubewarden/").unwrap()),
                 annotations: None,
             },
-        ];
+        ]
+    )]
+    fn test_deserialize_all_of_signatures(
+        #[case] config: &str,
+        #[case] expected_signatures: Vec<Signature>,
+    ) {
+        let vc: VerificationConfig =
+            serde_yaml::from_str(config).expect("failed to deserialize config");
 
-        match vc {
-            VerificationConfig::Versioned(versioned) => match versioned {
-                VersionedVerificationConfig::V1(v1) => {
-                    let expected = VerificationConfigV1 {
-                        all_of: Some(signatures),
-                        any_of: None,
-                    };
-                    assert_eq!(v1, expected);
-                }
-                _ => panic!("not the expected versioned config"),
-            },
-            _ => panic!("got an invalid config"),
+        let v1 = match vc {
+            VerificationConfig::Versioned(VersionedVerificationConfig::V1(v1)) => Some(v1),
+            _ => None,
         }
+        .expect("expected a V1 versioned config");
+
+        let expected = VerificationConfigV1 {
+            all_of: Some(expected_signatures),
+            any_of: None,
+        };
+        assert_eq!(v1, expected);
     }
 }

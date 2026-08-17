@@ -29,6 +29,8 @@ import (
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/matchconditions"
 	"k8s.io/apiserver/pkg/cel"
 	"k8s.io/apiserver/pkg/cel/environment"
+
+	"github.com/kubewarden/adm-controller/internal/constants"
 )
 
 // nonStrictStatelessCELCompiler is a cel Compiler that does not enforce strict cost enforcement.
@@ -85,6 +87,9 @@ func validatePolicyCreate(policy Policy) field.ErrorList {
 	allErrors = append(allErrors, validateRulesField(policy)...)
 	allErrors = append(allErrors, validateMatchConditions(policy.GetMatchConditions(), field.NewPath("spec").Child("matchConditions"))...)
 	allErrors = append(allErrors, validateTimeoutSeconds(policy)...)
+	if err := validateUniqueNameLength(policy); err != nil {
+		allErrors = append(allErrors, err)
+	}
 	return allErrors
 }
 
@@ -102,6 +107,31 @@ func validatePolicyUpdate(oldPolicy, newPolicy Policy) field.ErrorList {
 	}
 
 	return allErrors
+}
+
+// validateUniqueNameLength ensures that the policy's derived unique name,
+// once combined with the suffix used to build the corresponding webhook
+// entry name, does not exceed the Kubernetes DNS1123 subdomain length limit.
+// Name and namespace are immutable, so this is only checked on creation:
+// checking it on update as well would make an already-persisted, overlong
+// policy impossible to modify without providing any additional protection.
+func validateUniqueNameLength(policy Policy) *field.Error {
+	webhookName := policy.GetUniqueName() + constants.WebhookNameSuffix
+	if len(webhookName) <= validation.DNS1123SubdomainMaxLength {
+		return nil
+	}
+
+	maxNameLength := validation.DNS1123SubdomainMaxLength - len(constants.WebhookNameSuffix) - len(policy.GetUniqueName()) + len(policy.GetName())
+
+	return field.Invalid(
+		field.NewPath("metadata").Child("name"),
+		policy.GetName(),
+		fmt.Sprintf(
+			"the policy name combined with its namespace and kind produces an identity that is too long (%d characters, max %d); "+
+				"the name must be at most %d characters long",
+			len(webhookName), validation.DNS1123SubdomainMaxLength, maxNameLength,
+		),
+	)
 }
 
 // Validates the spec.Rules field for non-empty, webhook-valid rules.

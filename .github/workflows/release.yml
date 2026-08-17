@@ -73,6 +73,7 @@ jobs:
             runner: ubuntu-24.04-arm
             platform: linux/arm64
     permissions:
+      contents: read # Checkout private forks
       packages: write # Pushing images to ghcr.io
       id-token: write # Signing images with cosign
     runs-on: ${{ matrix.runner }}
@@ -88,7 +89,7 @@ jobs:
           arch: ${{ matrix.arch }}
           platform: ${{ matrix.platform }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          namespace: adm-controller
+          namespace: ${{ github.event.repository.name }}
 
   merge-containers:
     name: Merge multi-arch manifests
@@ -108,7 +109,7 @@ jobs:
           tag: ${{ github.ref_name }}
           arch: amd64,arm64
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          namespace: adm-controller
+          namespace: ${{ github.event.repository.name }}
 
   build-kwctl:
     name: Build kwctl binaries
@@ -138,7 +139,7 @@ jobs:
           component: ${{ matrix.component }}
           arch: ${{ matrix.arch }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          namespace: adm-controller
+          namespace: ${{ github.event.repository.name }}
 
   release:
     name: Create release

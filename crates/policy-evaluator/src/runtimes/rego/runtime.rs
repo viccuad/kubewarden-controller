@@ -87,19 +87,26 @@ impl Runtime<'_> {
                         struct Violation {
                             msg: Option<String>,
                         }
-                        #[derive(Debug, Default, Deserialize)]
+                        #[derive(Debug, Deserialize)]
                         struct Violations {
                             result: Vec<Violation>,
                         }
 
-                        let violations: Violations = evaluation_result
+                        let violations: Violations = match evaluation_result
                             .get(0)
-                            .ok_or_else(|| RegoRuntimeError::InvalidResponse)
+                            .ok_or(RegoRuntimeError::InvalidResponse)
                             .and_then(|response| {
                                 serde_json::from_value(response.clone())
                                     .map_err(RegoRuntimeError::InvalidResponseWithError)
-                            })
-                            .unwrap_or_default();
+                            }) {
+                            Ok(violations) => violations,
+                            Err(err) => {
+                                return AdmissionResponse::reject_internal_server_error(
+                                    uid.to_string(),
+                                    err.to_string(),
+                                );
+                            }
+                        };
 
                         if violations.result.is_empty() {
                             AdmissionResponse {

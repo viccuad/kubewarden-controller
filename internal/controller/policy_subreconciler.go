@@ -143,6 +143,14 @@ func (r *policySubReconciler) reconcilePolicy(ctx context.Context, policy polici
 	if err = r.reconcileWebhookConfiguration(ctx, policy, &secret, policyServer.NameWithPrefix()); err != nil {
 		return ctrl.Result{}, err
 	}
+
+	// Remove the webhook configurations created with the legacy, ambiguous
+	// unique name by previous versions of the controller. This migration code
+	// can be safely removed after a few releases.
+	if err = r.reconcileLegacyWebhookConfigurationCleanup(ctx, policy); err != nil {
+		return ctrl.Result{}, errors.Join(errors.New("error cleaning up legacy webhook configurations"), err)
+	}
+
 	setPolicyAsActive(policy)
 
 	return ctrl.Result{}, nil
@@ -191,6 +199,15 @@ func (r *policySubReconciler) deleteWebhookConfiguration(ctx context.Context, po
 // policy finalizers.
 func (r *policySubReconciler) removePolicyWebhooksAndFinalizers(ctx context.Context, policy policiesv1.Policy) error {
 	if err := r.deleteWebhookConfiguration(ctx, policy); err != nil {
+		return err
+	}
+
+	// Remove the webhook configurations created with the legacy, ambiguous
+	// unique name by previous versions of the controller, so that policies
+	// deleted before being reconciled by this version of the controller do
+	// not leave orphaned webhook configurations behind. This migration code
+	// can be safely removed after a few releases.
+	if err := r.reconcileLegacyWebhookConfigurationCleanup(ctx, policy); err != nil {
 		return err
 	}
 
