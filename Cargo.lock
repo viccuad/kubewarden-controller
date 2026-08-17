@@ -3681,7 +3681,7 @@ dependencies = [
 
 [[package]]
 name = "kwctl"
-version = "1.37.1"
+version = "1.37.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -4967,7 +4967,7 @@ dependencies = [
 
 [[package]]
 name = "policy-server"
-version = "1.37.1"
+version = "1.37.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -8009,16 +8009,6 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.255.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b524283fb5df62eec102ed0574838961bdd7ba5ac9c50d38e2756c51c971a42"
-dependencies = [
- "leb128fmt",
- "wasmparser 0.255.0",
-]
-
-[[package]]
-name = "wasm-encoder"
 version = "0.256.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec1492381bfd5ea51c2a99a919b676662559925cb8d7490547ec2e14c1ad3eb1"
@@ -8064,17 +8054,6 @@ dependencies = [
  "indexmap 2.14.0",
  "semver",
  "serde",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.255.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8e329ef4b5d46e73b91d3ac6924417cad55a8cbbf869c199283383427c3320b"
-dependencies = [
- "bitflags 2.13.1",
- "indexmap 2.14.0",
- "semver",
 ]
 
 [[package]]
