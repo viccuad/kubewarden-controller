@@ -1,7 +1,6 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, sync::LazyLock, time::Duration};
 
 use anyhow::{Result, anyhow};
-use cached::macros::cached;
 use itertools::Itertools;
 use kubewarden_policy_sdk::host_capabilities::verification::{
     KeylessInfo, KeylessPrefixInfo, VerificationResponse,
@@ -258,98 +257,108 @@ impl Client {
     }
 }
 
-// Sigstore verifications are time expensive, this can cause a massive slow down
-// of policy evaluations, especially inside of PolicyServer.
-// Because of that we will keep a cache of the digests results.
-//
-// Details about this cache:
-//   * the cache is time bound: cached values are purged after 60 seconds
-//   * only successful results are cached
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}{:?}{:?}", image, pub_keys, annotations)}"#,
-    with_cached_flag = true
-)]
+// Builds one time-bound verification cache.
+fn new_verification_cache() -> moka::future::Cache<String, VerificationResponse> {
+    moka::future::Cache::builder()
+        .time_to_live(Duration::from_secs(60))
+        .build()
+}
+
+// A sigstore verification is slow. This cache keeps the verification results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image plus the verification parameters, because these values select the
+// verification result.
+// Only successful results enter the cache.
+static PUB_KEY_VERIFICATION_CACHE: LazyLock<moka::future::Cache<String, VerificationResponse>> =
+    LazyLock::new(new_verification_cache);
+
 pub(crate) async fn get_sigstore_pub_key_verification_cached(
     client: &mut Client,
     image: String,
     pub_keys: Vec<String>,
     annotations: Option<BTreeMap<String, String>>,
 ) -> Result<cached::Return<VerificationResponse>> {
-    client
-        .verify_public_key(image, pub_keys, annotations)
+    let key = format!("{image}{pub_keys:?}{annotations:?}");
+    let entry = PUB_KEY_VERIFICATION_CACHE
+        .entry(key)
+        .or_try_insert_with(client.verify_public_key(image, pub_keys, annotations))
         .await
-        .map(cached::Return::new)
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }
 
-// Sigstore verifications are time expensive, this can cause a massive slow down
-// of policy evaluations, especially inside of PolicyServer.
-// Because of that we will keep a cache of the digests results.
-//
-// Details about this cache:
-//   * the cache is time bound: cached values are purged after 60 seconds
-//   * only successful results are cached
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}{:?}{:?}", image, keyless, annotations)}"#,
-    with_cached_flag = true
-)]
+// A sigstore verification is slow. This cache keeps the verification results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image plus the verification parameters, because these values select the
+// verification result.
+// Only successful results enter the cache.
+static KEYLESS_VERIFICATION_CACHE: LazyLock<moka::future::Cache<String, VerificationResponse>> =
+    LazyLock::new(new_verification_cache);
+
 pub(crate) async fn get_sigstore_keyless_verification_cached(
     client: &mut Client,
     image: String,
     keyless: Vec<KeylessInfo>,
     annotations: Option<BTreeMap<String, String>>,
 ) -> Result<cached::Return<VerificationResponse>> {
-    client
-        .verify_keyless(image, keyless, annotations)
+    let key = format!("{image}{keyless:?}{annotations:?}");
+    let entry = KEYLESS_VERIFICATION_CACHE
+        .entry(key)
+        .or_try_insert_with(client.verify_keyless(image, keyless, annotations))
         .await
-        .map(cached::Return::new)
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }
 
-// Sigstore verifications are time expensive, this can cause a massive slow down
-// of policy evaluations, especially inside of PolicyServer.
-// Because of that we will keep a cache of the digests results.
-//
-// Details about this cache:
-//   * the cache is time bound: cached values are purged after 60 seconds
-//   * only successful results are cached
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}{:?}{:?}", image, keyless_prefix, annotations)}"#,
-    with_cached_flag = true
-)]
+// A sigstore verification is slow. This cache keeps the verification results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image plus the verification parameters, because these values select the
+// verification result.
+// Only successful results enter the cache.
+static KEYLESS_PREFIX_VERIFICATION_CACHE: LazyLock<
+    moka::future::Cache<String, VerificationResponse>,
+> = LazyLock::new(new_verification_cache);
+
 pub(crate) async fn get_sigstore_keyless_prefix_verification_cached(
     client: &mut Client,
     image: String,
     keyless_prefix: Vec<KeylessPrefixInfo>,
     annotations: Option<BTreeMap<String, String>>,
 ) -> Result<cached::Return<VerificationResponse>> {
-    client
-        .verify_keyless_prefix(image, keyless_prefix, annotations)
+    let key = format!("{image}{keyless_prefix:?}{annotations:?}");
+    let entry = KEYLESS_PREFIX_VERIFICATION_CACHE
+        .entry(key)
+        .or_try_insert_with(client.verify_keyless_prefix(image, keyless_prefix, annotations))
         .await
-        .map(cached::Return::new)
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }
 
-// Sigstore verifications are time expensive, this can cause a massive slow down
-// of policy evaluations, especially inside of PolicyServer.
-// Because of that we will keep a cache of the digests results.
-//
-// Details about this cache:
-//   * the cache is time bound: cached values are purged after 60 seconds
-//   * only successful results are cached
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}{:?}{:?}{:?}", image, owner, repo, annotations)}"#,
-    with_cached_flag = true
-)]
+// A sigstore verification is slow. This cache keeps the verification results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image plus the verification parameters, because these values select the
+// verification result.
+// Only successful results enter the cache.
+static GITHUB_ACTIONS_VERIFICATION_CACHE: LazyLock<
+    moka::future::Cache<String, VerificationResponse>,
+> = LazyLock::new(new_verification_cache);
+
 pub(crate) async fn get_sigstore_github_actions_verification_cached(
     client: &mut Client,
     image: String,
@@ -357,10 +366,17 @@ pub(crate) async fn get_sigstore_github_actions_verification_cached(
     repo: Option<String>,
     annotations: Option<BTreeMap<String, String>>,
 ) -> Result<cached::Return<VerificationResponse>> {
-    client
-        .verify_github_actions(image, owner, repo, annotations)
+    let key = format!("{image}{owner:?}{repo:?}{annotations:?}");
+    let entry = GITHUB_ACTIONS_VERIFICATION_CACHE
+        .entry(key)
+        .or_try_insert_with(client.verify_github_actions(image, owner, repo, annotations))
         .await
-        .map(cached::Return::new)
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }
 
 fn get_sigstore_certificate_verification_cache_key(
@@ -398,13 +414,15 @@ fn get_sigstore_certificate_verification_cache_key(
     hex::encode(hasher.finalize())
 }
 
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}", get_sigstore_certificate_verification_cache_key(image, certificate, certificate_chain, require_rekor_bundle, annotations.as_ref()))}"#,
-    with_cached_flag = true
-)]
+// A sigstore verification is slow. This cache keeps the verification results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image plus the verification parameters, because these values select the
+// verification result.
+// Only successful results enter the cache.
+static CERTIFICATE_VERIFICATION_CACHE: LazyLock<moka::future::Cache<String, VerificationResponse>> =
+    LazyLock::new(new_verification_cache);
+
 pub(crate) async fn get_sigstore_certificate_verification_cached(
     client: &mut Client,
     image: &str,
@@ -413,14 +431,27 @@ pub(crate) async fn get_sigstore_certificate_verification_cached(
     require_rekor_bundle: bool,
     annotations: Option<BTreeMap<String, String>>,
 ) -> Result<cached::Return<VerificationResponse>> {
-    client
-        .verify_certificate(
+    let key = get_sigstore_certificate_verification_cache_key(
+        image,
+        certificate,
+        certificate_chain,
+        require_rekor_bundle,
+        annotations.as_ref(),
+    );
+    let entry = CERTIFICATE_VERIFICATION_CACHE
+        .entry(key)
+        .or_try_insert_with(client.verify_certificate(
             image,
             certificate,
             certificate_chain,
             require_rekor_bundle,
             annotations,
-        )
+        ))
         .await
-        .map(cached::Return::new)
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }

@@ -1,5 +1,7 @@
-use anyhow::Result;
-use cached::macros::cached;
+use std::sync::LazyLock;
+use std::time::Duration;
+
+use anyhow::{Result, anyhow};
 use kubewarden_policy_sdk::host_capabilities::oci::ManifestDigestResponse;
 use policy_fetcher::{
     oci_client::{
@@ -75,69 +77,96 @@ impl Client {
     }
 }
 
-// Interacting with a remote OCI registry is time expensive, this can cause a massive slow down
-// of policy evaluations, especially inside of PolicyServer.
-// Because of that we will keep a cache of the digests results.
-//
-// Details about this cache:
-//   * only the image "url" is used as key. oci::Client is not hashable, plus
-//     the client is always the same
-//   * the cache is time bound: cached values are purged after 60 seconds
-//   * only successful results are cached
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}", img) }"#,
-    with_cached_flag = true
-)]
+// A query to a remote OCI registry is slow. This cache keeps the digest results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image reference. The client is not part of the key, because the client is
+// always the same.
+// Only successful results enter the cache.
+static OCI_DIGEST_CACHE: LazyLock<moka::future::Cache<String, ManifestDigestResponse>> =
+    LazyLock::new(|| {
+        moka::future::Cache::builder()
+            .time_to_live(Duration::from_secs(60))
+            .build()
+    });
+
 pub(crate) async fn get_oci_digest_cached(
     oci_client: &Client,
     img: &str,
 ) -> Result<cached::Return<ManifestDigestResponse>> {
-    oci_client
-        .digest(img)
+    let entry = OCI_DIGEST_CACHE
+        .entry(img.to_owned())
+        .or_try_insert_with(async {
+            oci_client
+                .digest(img)
+                .await
+                .map(|digest| ManifestDigestResponse { digest })
+        })
         .await
-        .map(|digest| ManifestDigestResponse { digest })
-        .map(cached::Return::new)
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }
 
-// Interacting with a remote OCI registry is time expensive, this can cause a massive slow down
-// of policy evaluations, especially inside of PolicyServer.
-// Because of that we will keep a cache of the manifest results.
-//
-// Details about this cache:
-//   * only the image "url" is used as key. oci::Client is not hashable, plus
-//     the client is always the same
-//   * the cache is time bound: cached values are purged after 60 seconds
-//   * only successful results are cached
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}", img) }"#,
-    with_cached_flag = true
-)]
+// A query to a remote OCI registry is slow. This cache keeps the manifest results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image reference. The client is not part of the key, because the client is
+// always the same.
+// Only successful results enter the cache.
+static OCI_MANIFEST_CACHE: LazyLock<moka::future::Cache<String, OciManifest>> =
+    LazyLock::new(|| {
+        moka::future::Cache::builder()
+            .time_to_live(Duration::from_secs(60))
+            .build()
+    });
+
 pub(crate) async fn get_oci_manifest_cached(
     oci_client: &Client,
     img: &str,
 ) -> Result<cached::Return<OciManifest>> {
-    oci_client.manifest(img).await.map(cached::Return::new)
+    let entry = OCI_MANIFEST_CACHE
+        .entry(img.to_owned())
+        .or_try_insert_with(oci_client.manifest(img))
+        .await
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }
 
-#[cached(
-    ttl = 60,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("{}", img) }"#,
-    with_cached_flag = true
-)]
+// A query to a remote OCI registry is slow. This cache keeps the manifest and configuration
+// results.
+// This cache is time bound. moka removes entries 60 seconds after insertion, thus the memory
+// usage follows the current request rate (issue #1950).
+// The key is the image reference. The client is not part of the key, because the client is
+// always the same.
+// Only successful results enter the cache.
+static OCI_MANIFEST_AND_CONFIG_CACHE: LazyLock<
+    moka::future::Cache<String, ManifestAndConfigResponse>,
+> = LazyLock::new(|| {
+    moka::future::Cache::builder()
+        .time_to_live(Duration::from_secs(60))
+        .build()
+});
+
 pub(crate) async fn get_oci_manifest_and_config_cached(
     oci_client: &Client,
     img: &str,
 ) -> Result<cached::Return<ManifestAndConfigResponse>> {
-    oci_client
-        .manifest_and_config(img)
+    let entry = OCI_MANIFEST_AND_CONFIG_CACHE
+        .entry(img.to_owned())
+        .or_try_insert_with(oci_client.manifest_and_config(img))
         .await
-        .map(cached::Return::new)
+        .map_err(|e| anyhow!("{e:#}"))?;
+
+    Ok(cached::Return {
+        was_cached: !entry.is_fresh(),
+        value: entry.into_value(),
+    })
 }
