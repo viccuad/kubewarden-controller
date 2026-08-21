@@ -232,3 +232,65 @@ pub(crate) async fn can_i_cached(
         value: entry.into_value(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hyper::{Request, Response};
+    use k8s_openapi::api::authorization::v1::SubjectAccessReview;
+    use kube::client::Body;
+
+    use super::*;
+
+    // Ensure that the can_i cache deduplicates the backend calls. The test calls can_i_cached two
+    // times with the same request. The mock API server must receive exactly one SubjectAccessReview
+    // POST: the second call is a cache hit.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn can_i_cached_deduplicates_backend_calls() {
+        let (mocksvc, mut handle) = tower_test::mock::pair::<Request<Body>, Response<Body>>();
+        let sar_counter = Arc::new(AtomicUsize::new(0));
+
+        let counter = sar_counter.clone();
+        tokio::spawn(async move {
+            loop {
+                let (request, send) = handle.next_request().await.expect("service not called");
+                assert_eq!(
+                    request.uri().path(),
+                    "/apis/authorization.k8s.io/v1/subjectaccessreviews"
+                );
+                counter.fetch_add(1, Ordering::SeqCst);
+
+                let response = SubjectAccessReview {
+                    status: Some(SubjectAccessReviewStatus {
+                        allowed: false,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                };
+                let body = serde_json::to_vec(&response).unwrap();
+                send.send_response(Response::builder().body(Body::from(body)).unwrap());
+            }
+        });
+
+        let mut client = Client::new(kube::Client::new(mocksvc, "default"));
+        let request = KWSubjectAccessReview {
+            // unique user name. This keeps the cache key separate from the keys of the other tests,
+            // because the cache is one process-wide static.
+            user: "system:serviceaccount:default:can-i-cached-dedup-test".to_owned(),
+            ..Default::default()
+        };
+
+        let first = can_i_cached(Some(&mut client), request.clone())
+            .await
+            .expect("first call failed");
+        let second = can_i_cached(Some(&mut client), request)
+            .await
+            .expect("second call failed");
+
+        assert!(!first.was_cached);
+        assert!(second.was_cached);
+        assert_eq!(1, sar_counter.load(Ordering::SeqCst));
+    }
+}
