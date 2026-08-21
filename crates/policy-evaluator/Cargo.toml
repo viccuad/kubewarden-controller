@@ -16,8 +16,6 @@ async-trait = "0.1"
 base64 = { workspace = true }
 burrego = { path = "../burrego" }
 bytes = "1"
-cached = { version = "2.0", features = ["async_tokio_rt_multi_thread"] }
-moka = { version = "0.12", features = ["future"] }
 chrono = { version = "0.4", default-features = false }
 dns-lookup = "3.0"
 email_address = { version = "0.2", features = ["serde"] }
@@ -34,6 +32,7 @@ kube = { version = "4", default-features = false, features = [
 kubewarden-policy-sdk = { workspace = true, features = ["crd"] }
 lazy_static = { workspace = true }
 mail-parser = { version = "0.11", features = ["serde"] }
+moka = { version = "0.12", features = ["future"] }
 pki-types = { package = "rustls-pki-types", version = "1.14", default-features = false, features = [
   "std",
 ] }

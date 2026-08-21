@@ -9,6 +9,7 @@ use crate::callback_handler::kubernetes::field_mask;
 use crate::callback_requests::{CallbackRequest, CallbackRequestType, CallbackResponse};
 
 mod builder;
+mod cache_return;
 mod crypto;
 mod kubernetes;
 mod oci;

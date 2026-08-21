@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, sync::Arc, sync::LazyLock, time::Duration};
 
 use anyhow::{Result, anyhow};
+
+use crate::callback_handler::cache_return::Return;
 use itertools::Itertools;
 use kubewarden_policy_sdk::host_capabilities::verification::{
     KeylessInfo, KeylessPrefixInfo, VerificationResponse,
@@ -278,7 +280,7 @@ pub(crate) async fn get_sigstore_pub_key_verification_cached(
     image: String,
     pub_keys: Vec<String>,
     annotations: Option<BTreeMap<String, String>>,
-) -> Result<cached::Return<VerificationResponse>> {
+) -> Result<Return<VerificationResponse>> {
     let key = format!("{image}{pub_keys:?}{annotations:?}");
     let entry = PUB_KEY_VERIFICATION_CACHE
         .entry(key)
@@ -286,7 +288,7 @@ pub(crate) async fn get_sigstore_pub_key_verification_cached(
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
@@ -306,7 +308,7 @@ pub(crate) async fn get_sigstore_keyless_verification_cached(
     image: String,
     keyless: Vec<KeylessInfo>,
     annotations: Option<BTreeMap<String, String>>,
-) -> Result<cached::Return<VerificationResponse>> {
+) -> Result<Return<VerificationResponse>> {
     let key = format!("{image}{keyless:?}{annotations:?}");
     let entry = KEYLESS_VERIFICATION_CACHE
         .entry(key)
@@ -314,7 +316,7 @@ pub(crate) async fn get_sigstore_keyless_verification_cached(
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
@@ -335,7 +337,7 @@ pub(crate) async fn get_sigstore_keyless_prefix_verification_cached(
     image: String,
     keyless_prefix: Vec<KeylessPrefixInfo>,
     annotations: Option<BTreeMap<String, String>>,
-) -> Result<cached::Return<VerificationResponse>> {
+) -> Result<Return<VerificationResponse>> {
     let key = format!("{image}{keyless_prefix:?}{annotations:?}");
     let entry = KEYLESS_PREFIX_VERIFICATION_CACHE
         .entry(key)
@@ -343,7 +345,7 @@ pub(crate) async fn get_sigstore_keyless_prefix_verification_cached(
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
@@ -365,7 +367,7 @@ pub(crate) async fn get_sigstore_github_actions_verification_cached(
     owner: String,
     repo: Option<String>,
     annotations: Option<BTreeMap<String, String>>,
-) -> Result<cached::Return<VerificationResponse>> {
+) -> Result<Return<VerificationResponse>> {
     let key = format!("{image}{owner:?}{repo:?}{annotations:?}");
     let entry = GITHUB_ACTIONS_VERIFICATION_CACHE
         .entry(key)
@@ -373,7 +375,7 @@ pub(crate) async fn get_sigstore_github_actions_verification_cached(
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
@@ -430,7 +432,7 @@ pub(crate) async fn get_sigstore_certificate_verification_cached(
     certificate_chain: Option<&[Vec<u8>]>,
     require_rekor_bundle: bool,
     annotations: Option<BTreeMap<String, String>>,
-) -> Result<cached::Return<VerificationResponse>> {
+) -> Result<Return<VerificationResponse>> {
     let key = get_sigstore_certificate_verification_cache_key(
         image,
         certificate,
@@ -450,7 +452,7 @@ pub(crate) async fn get_sigstore_certificate_verification_cached(
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })

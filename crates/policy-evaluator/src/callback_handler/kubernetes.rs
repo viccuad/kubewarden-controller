@@ -7,6 +7,8 @@ pub(crate) mod field_mask;
 mod reflector;
 
 use anyhow::{Result, anyhow};
+
+use crate::callback_handler::cache_return::Return;
 use k8s_openapi::api::authorization::v1::SubjectAccessReviewStatus;
 use kube::core::ObjectList;
 use kubewarden_policy_sdk::host_capabilities::kubernetes::SubjectAccessReview as KWSubjectAccessReview;
@@ -34,9 +36,9 @@ pub(crate) async fn list_resources_by_namespace(
     label_selector: Option<String>,
     field_selector: Option<String>,
     field_masks: Option<BTreeSet<String>>,
-) -> Result<cached::Return<ObjectList<kube::core::DynamicObject>>> {
+) -> Result<Return<ObjectList<kube::core::DynamicObject>>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(cached::Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::new);
     }
 
     client
@@ -50,7 +52,7 @@ pub(crate) async fn list_resources_by_namespace(
             field_masks,
         )
         .await
-        .map(cached::Return::new)
+        .map(Return::new)
 }
 
 pub(crate) async fn list_resources_all(
@@ -60,9 +62,9 @@ pub(crate) async fn list_resources_all(
     label_selector: Option<String>,
     field_selector: Option<String>,
     field_masks: Option<BTreeSet<String>>,
-) -> Result<cached::Return<ObjectList<kube::core::DynamicObject>>> {
+) -> Result<Return<ObjectList<kube::core::DynamicObject>>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(cached::Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::new);
     }
 
     client
@@ -75,7 +77,7 @@ pub(crate) async fn list_resources_all(
             field_masks,
         )
         .await
-        .map(cached::Return::new)
+        .map(Return::new)
 }
 
 pub(crate) async fn get_resource(
@@ -84,7 +86,7 @@ pub(crate) async fn get_resource(
     kind: &str,
     name: &str,
     namespace: Option<&str>,
-) -> Result<cached::Return<kube::core::DynamicObject>> {
+) -> Result<Return<kube::core::DynamicObject>> {
     if client.is_none() {
         return Err(anyhow!("kube::Client was not initialized properly"));
     }
@@ -93,7 +95,7 @@ pub(crate) async fn get_resource(
         .unwrap()
         .get_resource(api_version, kind, name, namespace)
         .await
-        .map(|value| cached::Return {
+        .map(|value| Return {
             was_cached: false,
             value,
         })
@@ -118,7 +120,7 @@ pub(crate) async fn get_resource_cached(
     kind: &str,
     name: &str,
     namespace: Option<&str>,
-) -> Result<cached::Return<kube::core::DynamicObject>> {
+) -> Result<Return<kube::core::DynamicObject>> {
     let key = format!("get_resource_cached({api_version},{kind}),{name},{namespace:?}");
     let entry = GET_RESOURCE_CACHE
         .entry(key)
@@ -130,7 +132,7 @@ pub(crate) async fn get_resource_cached(
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
@@ -140,7 +142,7 @@ pub(crate) async fn get_resource_plural_name(
     client: Option<&mut Client>,
     api_version: &str,
     kind: &str,
-) -> Result<cached::Return<String>> {
+) -> Result<Return<String>> {
     if client.is_none() {
         return Err(anyhow!("kube::Client was not initialized properly"));
     }
@@ -149,7 +151,7 @@ pub(crate) async fn get_resource_plural_name(
         .unwrap()
         .get_resource_plural_name(api_version, kind)
         .await
-        .map(|value| cached::Return {
+        .map(|value| Return {
             // this is always cached, because the client builds an overview of
             // the cluster resources at bootstrap time
             was_cached: true,
@@ -167,9 +169,9 @@ pub(crate) async fn has_list_resources_all_result_changed_since_instant(
     field_selector: Option<String>,
     field_masks: Option<BTreeSet<String>>,
     since: tokio::time::Instant,
-) -> Result<cached::Return<bool>> {
+) -> Result<Return<bool>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(cached::Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::new);
     }
 
     client
@@ -183,25 +185,21 @@ pub(crate) async fn has_list_resources_all_result_changed_since_instant(
             since,
         )
         .await
-        .map(cached::Return::new)
+        .map(Return::new)
 }
 
 pub(crate) async fn can_i(
     client: Option<&mut Client>,
     request: KWSubjectAccessReview,
-) -> Result<cached::Return<SubjectAccessReviewStatus>> {
+) -> Result<Return<SubjectAccessReviewStatus>> {
     if client.is_none() {
         return Err(anyhow!("kube::Client was not initialized properly"));
     }
 
-    client
-        .unwrap()
-        .can_i(request)
-        .await
-        .map(|value| cached::Return {
-            was_cached: false,
-            value,
-        })
+    client.unwrap().can_i(request).await.map(|value| Return {
+        was_cached: false,
+        value,
+    })
 }
 
 // A query to the Kubernetes API server is slow. This cache keeps the SubjectAccessReview
@@ -222,14 +220,14 @@ static CAN_I_CACHE: LazyLock<
 pub(crate) async fn can_i_cached(
     client: Option<&mut Client>,
     request: KWSubjectAccessReview,
-) -> Result<cached::Return<SubjectAccessReviewStatus>> {
+) -> Result<Return<SubjectAccessReviewStatus>> {
     let entry = CAN_I_CACHE
         .entry(request.clone())
         .or_try_insert_with(async { can_i(client, request).await.map(|response| response.value) })
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })

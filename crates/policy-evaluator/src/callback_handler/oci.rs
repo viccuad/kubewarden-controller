@@ -2,6 +2,8 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
+
+use crate::callback_handler::cache_return::Return;
 use kubewarden_policy_sdk::host_capabilities::oci::ManifestDigestResponse;
 use policy_fetcher::{
     oci_client::{
@@ -93,7 +95,7 @@ static OCI_DIGEST_CACHE: LazyLock<moka::future::Cache<String, ManifestDigestResp
 pub(crate) async fn get_oci_digest_cached(
     oci_client: &Client,
     img: &str,
-) -> Result<cached::Return<ManifestDigestResponse>> {
+) -> Result<Return<ManifestDigestResponse>> {
     let entry = OCI_DIGEST_CACHE
         .entry(img.to_owned())
         .or_try_insert_with(async {
@@ -105,7 +107,7 @@ pub(crate) async fn get_oci_digest_cached(
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
@@ -127,14 +129,14 @@ static OCI_MANIFEST_CACHE: LazyLock<moka::future::Cache<String, OciManifest>> =
 pub(crate) async fn get_oci_manifest_cached(
     oci_client: &Client,
     img: &str,
-) -> Result<cached::Return<OciManifest>> {
+) -> Result<Return<OciManifest>> {
     let entry = OCI_MANIFEST_CACHE
         .entry(img.to_owned())
         .or_try_insert_with(oci_client.manifest(img))
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
@@ -158,14 +160,14 @@ static OCI_MANIFEST_AND_CONFIG_CACHE: LazyLock<
 pub(crate) async fn get_oci_manifest_and_config_cached(
     oci_client: &Client,
     img: &str,
-) -> Result<cached::Return<ManifestAndConfigResponse>> {
+) -> Result<Return<ManifestAndConfigResponse>> {
     let entry = OCI_MANIFEST_AND_CONFIG_CACHE
         .entry(img.to_owned())
         .or_try_insert_with(oci_client.manifest_and_config(img))
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(cached::Return {
+    Ok(Return {
         was_cached: !entry.is_fresh(),
         value: entry.into_value(),
     })
