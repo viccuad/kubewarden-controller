@@ -137,7 +137,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version: "1.27"
           check-latest: true # Always check for the latest patch release
       - run: make test-go
       - name: Upload Go test coverage to Codecov
@@ -161,7 +161,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version: "1.27"
           check-latest: true # Always check for the latest patch release
       - run: make test-e2e
       - name: Upload cluster logs
@@ -184,12 +184,12 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version: "1.27"
           check-latest: true # Always check for the latest patch release
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.12.2
+          version: v2.13.1
 
   # Rust jobs
   calculate-crates-matrix:
@@ -362,7 +362,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@288e746965032cfcc232e09af2daf5f23c14d780 # v2.86.1
+        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
         with:
           tool: cargo-llvm-cov
       - name: Install cosign # this is needed by some of the e2e tests
@@ -470,7 +470,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version: "1.27"
           check-latest: true
       - run: |
           make check-generate
