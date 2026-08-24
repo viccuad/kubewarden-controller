@@ -50,8 +50,8 @@ type policyServerConfigEntry struct {
 // handle them differently. It's not beautiful, but we do not need to change
 // other parts of the code to make it work.
 func (p *policyServerConfigEntry) UnmarshalJSON(b []byte) error {
-	type configEntry *policyServerConfigEntry
-	entry := configEntry(p)
+	type configEntry policyServerConfigEntry
+	entry := (*configEntry)(p)
 	if err := json.Unmarshal(b, entry); err != nil {
 		return errors.Join(errors.New("failed to unmarshal policy server config entry"), err)
 	}
