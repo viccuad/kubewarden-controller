@@ -438,7 +438,7 @@ func (r *PolicyServerReconciler) reconcileDeletion(ctx context.Context, policySe
 	}
 	// Requeue so the next reconcile fetches the object with the updated
 	// resourceVersion before calling r.Update to remove the finalizers.
-	return ctrl.Result{Requeue: true}, nil
+	return ctrl.Result{Requeue: true}, nil //nolint:staticcheck // Keep Requeue, RequeueAfter doesn't do exponential back-off
 }
 
 func (r *PolicyServerReconciler) removeFinalizers(ctx context.Context, policyServer *policiesv1.PolicyServer) (ctrl.Result, error) {

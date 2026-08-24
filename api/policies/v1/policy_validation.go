@@ -77,7 +77,7 @@ func (sr sensitiveResource) MatchesRules(apiGroups []string, resource []string) 
 
 func defaultSensitiveResources() []sensitiveResource {
 	return []sensitiveResource{
-		{APIGroup: "wgpolicyk8s.io", Resource: "policyreports"}, //nolint:goconst
+		{APIGroup: "wgpolicyk8s.io", Resource: "policyreports"},
 	}
 }
 

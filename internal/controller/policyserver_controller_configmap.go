@@ -50,8 +50,8 @@ type policyServerConfigEntry struct {
 // handle them differently. It's not beautiful, but we do not need to change
 // other parts of the code to make it work.
 func (p *policyServerConfigEntry) UnmarshalJSON(b []byte) error {
-	type configEntry *policyServerConfigEntry
-	entry := configEntry(p)
+	type configEntry policyServerConfigEntry
+	entry := (*configEntry)(p)
 	if err := json.Unmarshal(b, entry); err != nil {
 		return errors.Join(errors.New("failed to unmarshal policy server config entry"), err)
 	}
@@ -191,7 +191,7 @@ func (r *PolicyServerReconciler) policyServerConfigMapVersion(ctx context.Contex
 	// data from the API server
 	unstructuredObj := &unstructured.Unstructured{}
 	unstructuredObj.SetGroupVersionKind(schema.GroupVersionKind{
-		Kind:    "ConfigMap", //nolint:goconst
+		Kind:    "ConfigMap",
 		Version: "v1",
 	})
 	err := r.Client.Get(ctx, client.ObjectKey{
@@ -284,7 +284,7 @@ func buildSourcesMap(policyServer *policiesv1.PolicyServer) policyServerSourcesE
 		for _, cert := range certs {
 			sourcesEntry.SourceAuthorities[uri] = append(sourcesEntry.SourceAuthorities[uri],
 				policyServerSourceAuthority{
-					Type: "Data", //nolint: goconst
+					Type: "Data",
 					Data: cert,
 				})
 		}

@@ -99,7 +99,7 @@ func (r *policySubReconciler) reconcilePolicy(ctx context.Context, policy polici
 	policyServerDeployment := appsv1.Deployment{}
 	if err = r.Get(ctx, types.NamespacedName{Namespace: r.deploymentsNamespace, Name: policyServerDeploymentName(policy.GetPolicyServer())}, &policyServerDeployment); err != nil {
 		if apierrors.IsNotFound(err) {
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{Requeue: true}, nil //nolint:staticcheck // Keep Requeue, RequeueAfter doesn't do exponential back-off
 		}
 		return ctrl.Result{}, errors.Join(errors.New("could not read policy server Deployment"), err)
 	}
@@ -114,7 +114,7 @@ func (r *policySubReconciler) reconcilePolicy(ctx context.Context, policy polici
 				Message: "The latest replica set is not uniquely reachable",
 			},
 		)
-		return ctrl.Result{Requeue: true, RequeueAfter: constants.TimeToRequeuePolicyReconciliation}, nil
+		return ctrl.Result{Requeue: true, RequeueAfter: constants.TimeToRequeuePolicyReconciliation}, nil //nolint:staticcheck // Keep Requeue, RequeueAfter doesn't do exponential back-off
 	}
 
 	apimeta.SetStatusCondition(
