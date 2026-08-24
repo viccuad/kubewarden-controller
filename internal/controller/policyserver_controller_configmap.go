@@ -191,7 +191,7 @@ func (r *PolicyServerReconciler) policyServerConfigMapVersion(ctx context.Contex
 	// data from the API server
 	unstructuredObj := &unstructured.Unstructured{}
 	unstructuredObj.SetGroupVersionKind(schema.GroupVersionKind{
-		Kind:    "ConfigMap", //nolint:goconst
+		Kind:    "ConfigMap",
 		Version: "v1",
 	})
 	err := r.Client.Get(ctx, client.ObjectKey{
@@ -284,7 +284,7 @@ func buildSourcesMap(policyServer *policiesv1.PolicyServer) policyServerSourcesE
 		for _, cert := range certs {
 			sourcesEntry.SourceAuthorities[uri] = append(sourcesEntry.SourceAuthorities[uri],
 				policyServerSourceAuthority{
-					Type: "Data", //nolint: goconst
+					Type: "Data",
 					Data: cert,
 				})
 		}
