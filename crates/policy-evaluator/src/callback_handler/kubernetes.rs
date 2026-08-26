@@ -36,7 +36,7 @@ pub(crate) async fn list_resources_by_namespace(
     field_masks: Option<BTreeSet<String>>,
 ) -> Result<Return<ObjectList<kube::core::DynamicObject>>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::not_cached);
     }
 
     client
@@ -50,7 +50,7 @@ pub(crate) async fn list_resources_by_namespace(
             field_masks,
         )
         .await
-        .map(Return::new)
+        .map(Return::not_cached)
 }
 
 pub(crate) async fn list_resources_all(
@@ -62,7 +62,7 @@ pub(crate) async fn list_resources_all(
     field_masks: Option<BTreeSet<String>>,
 ) -> Result<Return<ObjectList<kube::core::DynamicObject>>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::not_cached);
     }
 
     client
@@ -75,7 +75,7 @@ pub(crate) async fn list_resources_all(
             field_masks,
         )
         .await
-        .map(Return::new)
+        .map(Return::not_cached)
 }
 
 pub(crate) async fn get_resource(
@@ -93,10 +93,7 @@ pub(crate) async fn get_resource(
         .unwrap()
         .get_resource(api_version, kind, name, namespace)
         .await
-        .map(|value| Return {
-            was_cached: false,
-            value,
-        })
+        .map(Return::not_cached)
 }
 
 pub(crate) async fn get_resource_cached(
@@ -129,12 +126,9 @@ pub(crate) async fn get_resource_plural_name(
         .unwrap()
         .get_resource_plural_name(api_version, kind)
         .await
-        .map(|value| Return {
-            // this is always cached, because the client builds an overview of
-            // the cluster resources at bootstrap time
-            was_cached: true,
-            value,
-        })
+        // this is always cached, because the client builds an overview of
+        // the cluster resources at bootstrap time
+        .map(Return::cached)
 }
 
 /// Check if the results of the "list all resources" query have changed since the provided instant
@@ -149,7 +143,7 @@ pub(crate) async fn has_list_resources_all_result_changed_since_instant(
     since: tokio::time::Instant,
 ) -> Result<Return<bool>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::not_cached);
     }
 
     client
@@ -163,7 +157,7 @@ pub(crate) async fn has_list_resources_all_result_changed_since_instant(
             since,
         )
         .await
-        .map(Return::new)
+        .map(Return::not_cached)
 }
 
 pub(crate) async fn can_i(
@@ -174,10 +168,7 @@ pub(crate) async fn can_i(
         return Err(anyhow!("kube::Client was not initialized properly"));
     }
 
-    client.unwrap().can_i(request).await.map(|value| Return {
-        was_cached: false,
-        value,
-    })
+    client.unwrap().can_i(request).await.map(Return::not_cached)
 }
 
 pub(crate) async fn can_i_cached(

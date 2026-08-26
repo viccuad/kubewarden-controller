@@ -85,54 +85,38 @@ fn verify_cert_chain(
     );
 
     match verification_result {
-        Ok(_) => Ok(Return {
-            value: CertificateVerificationResponse {
-                trusted: true,
-                reason: "".to_string(),
-            },
-            was_cached: false,
-        }),
-        Err(Error::InvalidSignatureForPublicKey) => Ok(Return {
-            value: CertificateVerificationResponse {
+        Ok(_) => Ok(Return::not_cached(CertificateVerificationResponse {
+            trusted: true,
+            reason: "".to_string(),
+        })),
+        Err(Error::InvalidSignatureForPublicKey) => {
+            Ok(Return::not_cached(CertificateVerificationResponse {
                 trusted: false,
                 reason: CERTIFICATE_NOT_TRUSTED_BY_CHAIN.to_string(),
-            },
-            was_cached: false,
-        }),
+            }))
+        }
         Err(Error::CertExpired {
             time: _,
             not_after: _,
-        }) => Ok(Return {
-            value: CertificateVerificationResponse {
-                trusted: false,
-                reason: CERTIFICATE_USED_AFTER_EXPIRATION.to_string(),
-            },
-            was_cached: false,
-        }),
+        }) => Ok(Return::not_cached(CertificateVerificationResponse {
+            trusted: false,
+            reason: CERTIFICATE_USED_AFTER_EXPIRATION.to_string(),
+        })),
         Err(Error::CertNotValidYet {
             time: _,
             not_before: _,
-        }) => Ok(Return {
-            value: CertificateVerificationResponse {
-                trusted: false,
-                reason: CERTIFICATE_USED_BEFORE_VALIDITY.to_string(),
-            },
-            was_cached: false,
-        }),
-        Err(Error::UnknownIssuer) => Ok(Return {
-            value: CertificateVerificationResponse {
-                trusted: false,
-                reason: CERTIFICATE_NOT_TRUSTED_BY_CHAIN.to_string(),
-            },
-            was_cached: false,
-        }),
-        Err(e) => Ok(Return {
-            value: CertificateVerificationResponse {
-                trusted: false,
-                reason: format!("Certificate not trusted: {}", e),
-            },
-            was_cached: false,
-        }),
+        }) => Ok(Return::not_cached(CertificateVerificationResponse {
+            trusted: false,
+            reason: CERTIFICATE_USED_BEFORE_VALIDITY.to_string(),
+        })),
+        Err(Error::UnknownIssuer) => Ok(Return::not_cached(CertificateVerificationResponse {
+            trusted: false,
+            reason: CERTIFICATE_NOT_TRUSTED_BY_CHAIN.to_string(),
+        })),
+        Err(e) => Ok(Return::not_cached(CertificateVerificationResponse {
+            trusted: false,
+            reason: format!("Certificate not trusted: {}", e),
+        })),
     }
 }
 

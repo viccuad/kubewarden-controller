@@ -12,10 +12,18 @@ pub(crate) struct Return<T> {
 
 impl<T> Return<T> {
     /// Wraps a value that did not come from the cache.
-    pub fn new(value: T) -> Self {
+    pub fn not_cached(value: T) -> Self {
         Return {
             value,
             was_cached: false,
+        }
+    }
+
+    /// Wraps a value that came from the cache.
+    pub fn cached(value: T) -> Self {
+        Return {
+            value,
+            was_cached: true,
         }
     }
 }
@@ -40,9 +48,10 @@ where
         .await
         .map_err(|e| anyhow!("{e:#}"))?;
 
-    Ok(Return {
-        was_cached: !entry.is_fresh(),
-        value: entry.into_value(),
+    Ok(if entry.is_fresh() {
+        Return::not_cached(entry.into_value())
+    } else {
+        Return::cached(entry.into_value())
     })
 }
 
