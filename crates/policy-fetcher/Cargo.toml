@@ -36,7 +36,6 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 sha2 = { workspace = true }
 sigstore = { version = "0.14", default-features = false, features = [
-  "cached-client",
   "cosign",
   "rustls-tls",
   "sigstore-trust-root",

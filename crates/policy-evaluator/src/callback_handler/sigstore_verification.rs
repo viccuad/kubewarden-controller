@@ -77,9 +77,8 @@ impl Client {
     ) -> Result<sigstore::cosign::Client> {
         let client_config: sigstore::registry::ClientConfig = sources.unwrap_or_default().into();
 
-        let mut cosign_client_builder = sigstore::cosign::ClientBuilder::default()
-            .with_oci_client_config(client_config)
-            .enable_registry_caching();
+        let mut cosign_client_builder =
+            sigstore::cosign::ClientBuilder::default().with_oci_client_config(client_config);
         let cosign_client = match trust_root {
             Some(trust_root) => {
                 cosign_client_builder =
