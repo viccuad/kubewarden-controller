@@ -14,8 +14,8 @@ version = "0.32.0"
 anyhow = { workspace = true }
 async-trait = "0.1"
 base64 = { workspace = true }
-bytes = "1"
 burrego = { path = "../burrego" }
+bytes = "1"
 cached = { version = "2.0", features = ["async_tokio_rt_multi_thread"] }
 chrono = { version = "0.4", default-features = false }
 dns-lookup = "3.0"
@@ -54,7 +54,7 @@ url = { workspace = true }
 validator = { version = "0.21", features = ["derive"] }
 wapc = "2.1"
 wasmparser = "0.257"
-wasmtime-provider = { version = "2.23.0", features = ["cache"] }
+wasmtime-provider = { version = "2.24.0", features = ["cache"] }
 wasmtime-wasi = { workspace = true }
 webpki-roots = "1"
 
