@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
+    time::Duration,
 };
 
 use anyhow::{Result, anyhow};
@@ -13,6 +14,7 @@ use kube::{
 use kubewarden_policy_sdk::host_capabilities::kubernetes::SubjectAccessReview as KWSubjectAccessReview;
 use tokio::{sync::RwLock, time::Instant};
 
+use crate::callback_handler::cache_return::{Return, try_cached};
 use crate::callback_handler::kubernetes::{ApiVersionKind, KubeResource, reflector::Reflector};
 
 #[derive(Clone)]
@@ -20,6 +22,21 @@ pub(crate) struct Client {
     kube_client: kube::Client,
     kube_resources: Arc<RwLock<HashMap<ApiVersionKind, KubeResource>>>,
     reflectors: Arc<RwLock<HashMap<String, Reflector>>>,
+    // A query to the Kubernetes API server is slow. This cache keeps the resource results,
+    // which are full Kubernetes objects.
+    // This cache is time bound. moka removes entries 5 seconds after insertion, thus the memory
+    // usage follows the current request rate (issue #1950).
+    // The key is the resource identity: API version, kind, name, and namespace.
+    // Only successful results enter the cache.
+    get_resource_cache: moka::future::Cache<String, DynamicObject>,
+    // A query to the Kubernetes API server is slow. This cache keeps the SubjectAccessReview
+    // results.
+    // This cache is time bound. moka removes entries 5 seconds after insertion, thus the memory
+    // usage follows the current request rate (issue #1950).
+    // The key is the full SubjectAccessReview request, because the type implements the Hash and
+    // Eq traits.
+    // Only successful results enter the cache.
+    can_i_cache: moka::future::Cache<KWSubjectAccessReview, SubjectAccessReviewStatus>,
 }
 
 impl Client {
@@ -28,13 +45,19 @@ impl Client {
             kube_client: client,
             kube_resources: Arc::new(RwLock::new(HashMap::new())),
             reflectors: Arc::new(RwLock::new(HashMap::new())),
+            get_resource_cache: moka::future::Cache::builder()
+                .time_to_live(Duration::from_secs(5))
+                .build(),
+            can_i_cache: moka::future::Cache::builder()
+                .time_to_live(Duration::from_secs(5))
+                .build(),
         }
     }
 
     /// Build a KubeResource using the apiVersion and Kind "coordinates" provided.
     /// The result is then cached locally to avoid further interactions with
     /// the Kubernetes API Server
-    async fn build_kube_resource(&mut self, api_version: &str, kind: &str) -> Result<KubeResource> {
+    async fn build_kube_resource(&self, api_version: &str, kind: &str) -> Result<KubeResource> {
         let avk = ApiVersionKind {
             api_version: api_version.to_owned(),
             kind: kind.to_owned(),
@@ -97,7 +120,7 @@ impl Client {
     }
 
     async fn get_reflector_reader(
-        &mut self,
+        &self,
         reflector_id: &str,
         resource: KubeResource,
         namespace: Option<String>,
@@ -135,7 +158,7 @@ impl Client {
     }
 
     pub async fn list_resources_by_namespace(
-        &mut self,
+        &self,
         api_version: &str,
         kind: &str,
         namespace: &str,
@@ -161,7 +184,7 @@ impl Client {
     }
 
     pub async fn list_resources_all(
-        &mut self,
+        &self,
         api_version: &str,
         kind: &str,
         label_selector: Option<String>,
@@ -181,7 +204,7 @@ impl Client {
     }
 
     pub async fn has_list_resources_all_result_changed_since_instant(
-        &mut self,
+        &self,
         api_version: &str,
         kind: &str,
         label_selector: Option<String>,
@@ -204,7 +227,7 @@ impl Client {
     }
 
     async fn list_resources_from_reflector(
-        &mut self,
+        &self,
         resource: KubeResource,
         namespace: Option<String>,
         label_selector: Option<String>,
@@ -249,7 +272,7 @@ impl Client {
 
     /// Check if the resources cached by the reflector have changed since the provided instant
     async fn have_reflector_resources_changed_since(
-        &mut self,
+        &self,
         resource: &KubeResource,
         namespace: Option<String>,
         label_selector: Option<String>,
@@ -277,7 +300,7 @@ impl Client {
     }
 
     pub async fn get_resource(
-        &mut self,
+        &self,
         api_version: &str,
         kind: &str,
         name: &str,
@@ -309,19 +332,12 @@ impl Client {
             .ok_or_else(|| anyhow!("Cannot find {api_version}/{kind} named '{name}' inside of namespace '{namespace:?}'"))
     }
 
-    pub async fn get_resource_plural_name(
-        &mut self,
-        api_version: &str,
-        kind: &str,
-    ) -> Result<String> {
+    pub async fn get_resource_plural_name(&self, api_version: &str, kind: &str) -> Result<String> {
         let resource = self.build_kube_resource(api_version, kind).await?;
         Ok(resource.resource.plural)
     }
 
-    pub async fn can_i(
-        &mut self,
-        request: KWSubjectAccessReview,
-    ) -> Result<SubjectAccessReviewStatus> {
+    pub async fn can_i(&self, request: KWSubjectAccessReview) -> Result<SubjectAccessReviewStatus> {
         let subject_access_review = SubjectAccessReview {
             spec: request.into(),
             ..Default::default()
@@ -336,5 +352,28 @@ impl Client {
                 .status
                 .ok_or(anyhow!("SubjectAccessReview did not return a response"))
         })
+    }
+
+    pub async fn get_resource_cached(
+        &self,
+        api_version: &str,
+        kind: &str,
+        name: &str,
+        namespace: Option<&str>,
+    ) -> Result<Return<kube::core::DynamicObject>> {
+        let key = format!("get_resource_cached({api_version},{kind}),{name},{namespace:?}");
+        try_cached(
+            &self.get_resource_cache,
+            key,
+            self.get_resource(api_version, kind, name, namespace),
+        )
+        .await
+    }
+
+    pub async fn can_i_cached(
+        &self,
+        request: KWSubjectAccessReview,
+    ) -> Result<Return<SubjectAccessReviewStatus>> {
+        try_cached(&self.can_i_cache, request.clone(), self.can_i(request)).await
     }
 }

@@ -1,6 +1,4 @@
 use std::collections::BTreeSet;
-use std::sync::LazyLock;
-use std::time::Duration;
 
 mod client;
 pub(crate) mod field_mask;
@@ -29,7 +27,7 @@ pub(crate) struct KubeResource {
 }
 
 pub(crate) async fn list_resources_by_namespace(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     namespace: &str,
@@ -56,7 +54,7 @@ pub(crate) async fn list_resources_by_namespace(
 }
 
 pub(crate) async fn list_resources_all(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     label_selector: Option<String>,
@@ -81,7 +79,7 @@ pub(crate) async fn list_resources_all(
 }
 
 pub(crate) async fn get_resource(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     name: &str,
@@ -101,45 +99,25 @@ pub(crate) async fn get_resource(
         })
 }
 
-// A query to the Kubernetes API server is slow. This cache keeps the resource results,
-// which are full Kubernetes objects.
-// This cache is time bound. moka removes entries 5 seconds after insertion, thus the memory
-// usage follows the current request rate (issue #1950).
-// The key is the resource identity: API version, kind, name, and namespace.
-// Only successful results enter the cache.
-static GET_RESOURCE_CACHE: LazyLock<moka::future::Cache<String, kube::core::DynamicObject>> =
-    LazyLock::new(|| {
-        moka::future::Cache::builder()
-            .time_to_live(Duration::from_secs(5))
-            .build()
-    });
-
 pub(crate) async fn get_resource_cached(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     name: &str,
     namespace: Option<&str>,
 ) -> Result<Return<kube::core::DynamicObject>> {
-    let key = format!("get_resource_cached({api_version},{kind}),{name},{namespace:?}");
-    let entry = GET_RESOURCE_CACHE
-        .entry(key)
-        .or_try_insert_with(async {
-            get_resource(client, api_version, kind, name, namespace)
+    match client {
+        Some(client) => {
+            client
+                .get_resource_cached(api_version, kind, name, namespace)
                 .await
-                .map(|response| response.value)
-        })
-        .await
-        .map_err(|e| anyhow!("{e:#}"))?;
-
-    Ok(Return {
-        was_cached: !entry.is_fresh(),
-        value: entry.into_value(),
-    })
+        }
+        None => Err(anyhow!("kube::Client was not initialized properly")),
+    }
 }
 
 pub(crate) async fn get_resource_plural_name(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
 ) -> Result<Return<String>> {
@@ -162,7 +140,7 @@ pub(crate) async fn get_resource_plural_name(
 /// Check if the results of the "list all resources" query have changed since the provided instant
 /// This is done by querying the reflector that keeps track of this query
 pub(crate) async fn has_list_resources_all_result_changed_since_instant(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     label_selector: Option<String>,
@@ -189,7 +167,7 @@ pub(crate) async fn has_list_resources_all_result_changed_since_instant(
 }
 
 pub(crate) async fn can_i(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     request: KWSubjectAccessReview,
 ) -> Result<Return<SubjectAccessReviewStatus>> {
     if client.is_none() {
@@ -202,35 +180,14 @@ pub(crate) async fn can_i(
     })
 }
 
-// A query to the Kubernetes API server is slow. This cache keeps the SubjectAccessReview
-// results.
-// This cache is time bound. moka removes entries 5 seconds after insertion, thus the memory
-// usage follows the current request rate (issue #1950).
-// The key is the full SubjectAccessReview request, because the type implements the Hash and
-// Eq traits.
-// Only successful results enter the cache.
-static CAN_I_CACHE: LazyLock<
-    moka::future::Cache<KWSubjectAccessReview, SubjectAccessReviewStatus>,
-> = LazyLock::new(|| {
-    moka::future::Cache::builder()
-        .time_to_live(Duration::from_secs(5))
-        .build()
-});
-
 pub(crate) async fn can_i_cached(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     request: KWSubjectAccessReview,
 ) -> Result<Return<SubjectAccessReviewStatus>> {
-    let entry = CAN_I_CACHE
-        .entry(request.clone())
-        .or_try_insert_with(async { can_i(client, request).await.map(|response| response.value) })
-        .await
-        .map_err(|e| anyhow!("{e:#}"))?;
-
-    Ok(Return {
-        was_cached: !entry.is_fresh(),
-        value: entry.into_value(),
-    })
+    match client {
+        Some(client) => client.can_i_cached(request).await,
+        None => Err(anyhow!("kube::Client was not initialized properly")),
+    }
 }
 
 #[cfg(test)]
@@ -274,18 +231,16 @@ mod tests {
             }
         });
 
-        let mut client = Client::new(kube::Client::new(mocksvc, "default"));
+        let client = Client::new(kube::Client::new(mocksvc, "default"));
         let request = KWSubjectAccessReview {
-            // unique user name. This keeps the cache key separate from the keys of the other tests,
-            // because the cache is one process-wide static.
             user: "system:serviceaccount:default:can-i-cached-dedup-test".to_owned(),
             ..Default::default()
         };
 
-        let first = can_i_cached(Some(&mut client), request.clone())
+        let first = can_i_cached(Some(&client), request.clone())
             .await
             .expect("first call failed");
-        let second = can_i_cached(Some(&mut client), request)
+        let second = can_i_cached(Some(&client), request)
             .await
             .expect("second call failed");
 

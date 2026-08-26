@@ -94,7 +94,7 @@ impl Verifier {
     /// Note well: right now, verification can be done only against policies
     /// that are stored inside of OCI registries.
     pub async fn verify(
-        &mut self,
+        &self,
         image_url: &str,
         verification_config: &config::LatestVerificationConfig,
     ) -> VerifyResult<String> {
@@ -120,7 +120,7 @@ impl Verifier {
     /// Note well: right now, verification can be done only against policies
     /// that are stored inside of OCI registries.
     pub async fn verify_local_file_checksum(
-        &mut self,
+        &self,
         policy: &Policy,
         verified_manifest_digest: &str,
     ) -> VerifyResult<()> {
