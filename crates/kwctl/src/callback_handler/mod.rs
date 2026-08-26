@@ -24,8 +24,8 @@ pub(crate) enum ProxyMode {
 /// The goal is to allow kwctl to have a proxy handler, that can
 /// record and reply any kind of policy <-> host capability exchange
 pub(crate) enum CallbackHandler {
-    Direct(policy_evaluator::callback_handler::CallbackHandler),
-    Proxy(proxy::CallbackHandlerProxy),
+    Direct(Box<policy_evaluator::callback_handler::CallbackHandler>),
+    Proxy(Box<proxy::CallbackHandlerProxy>),
 }
 
 impl CallbackHandler {
@@ -90,7 +90,7 @@ async fn new_proxy(
     )
     .await?;
 
-    Ok(CallbackHandler::Proxy(proxy))
+    Ok(CallbackHandler::Proxy(Box::new(proxy)))
 }
 
 async fn new_transparent(
@@ -108,5 +108,5 @@ async fn new_transparent(
 
     let real_callback_handler = callback_handler_builder.build().await?;
 
-    Ok(CallbackHandler::Direct(real_callback_handler))
+    Ok(CallbackHandler::Direct(Box::new(real_callback_handler)))
 }
