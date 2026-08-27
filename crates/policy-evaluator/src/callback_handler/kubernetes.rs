@@ -5,7 +5,8 @@ pub(crate) mod field_mask;
 mod reflector;
 
 use anyhow::{Result, anyhow};
-use cached::macros::cached;
+
+use crate::callback_handler::cache_return::Return;
 use k8s_openapi::api::authorization::v1::SubjectAccessReviewStatus;
 use kube::core::ObjectList;
 use kubewarden_policy_sdk::host_capabilities::kubernetes::SubjectAccessReview as KWSubjectAccessReview;
@@ -26,16 +27,16 @@ pub(crate) struct KubeResource {
 }
 
 pub(crate) async fn list_resources_by_namespace(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     namespace: &str,
     label_selector: Option<String>,
     field_selector: Option<String>,
     field_masks: Option<BTreeSet<String>>,
-) -> Result<cached::Return<ObjectList<kube::core::DynamicObject>>> {
+) -> Result<Return<ObjectList<kube::core::DynamicObject>>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(cached::Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::not_cached);
     }
 
     client
@@ -49,19 +50,19 @@ pub(crate) async fn list_resources_by_namespace(
             field_masks,
         )
         .await
-        .map(cached::Return::new)
+        .map(Return::not_cached)
 }
 
 pub(crate) async fn list_resources_all(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     label_selector: Option<String>,
     field_selector: Option<String>,
     field_masks: Option<BTreeSet<String>>,
-) -> Result<cached::Return<ObjectList<kube::core::DynamicObject>>> {
+) -> Result<Return<ObjectList<kube::core::DynamicObject>>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(cached::Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::not_cached);
     }
 
     client
@@ -74,16 +75,16 @@ pub(crate) async fn list_resources_all(
             field_masks,
         )
         .await
-        .map(cached::Return::new)
+        .map(Return::not_cached)
 }
 
 pub(crate) async fn get_resource(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     name: &str,
     namespace: Option<&str>,
-) -> Result<cached::Return<kube::core::DynamicObject>> {
+) -> Result<Return<kube::core::DynamicObject>> {
     if client.is_none() {
         return Err(anyhow!("kube::Client was not initialized properly"));
     }
@@ -92,34 +93,31 @@ pub(crate) async fn get_resource(
         .unwrap()
         .get_resource(api_version, kind, name, namespace)
         .await
-        .map(|value| cached::Return {
-            was_cached: false,
-            value,
-        })
+        .map(Return::not_cached)
 }
 
-#[cached(
-    ttl = 5,
-    sync_writes = "default",
-    key = "String",
-    convert = r#"{ format!("get_resource_cached({},{}),{},{:?}", api_version, kind, name, namespace) }"#,
-    with_cached_flag = true
-)]
 pub(crate) async fn get_resource_cached(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     name: &str,
     namespace: Option<&str>,
-) -> Result<cached::Return<kube::core::DynamicObject>> {
-    get_resource(client, api_version, kind, name, namespace).await
+) -> Result<Return<kube::core::DynamicObject>> {
+    match client {
+        Some(client) => {
+            client
+                .get_resource_cached(api_version, kind, name, namespace)
+                .await
+        }
+        None => Err(anyhow!("kube::Client was not initialized properly")),
+    }
 }
 
 pub(crate) async fn get_resource_plural_name(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
-) -> Result<cached::Return<String>> {
+) -> Result<Return<String>> {
     if client.is_none() {
         return Err(anyhow!("kube::Client was not initialized properly"));
     }
@@ -128,27 +126,24 @@ pub(crate) async fn get_resource_plural_name(
         .unwrap()
         .get_resource_plural_name(api_version, kind)
         .await
-        .map(|value| cached::Return {
-            // this is always cached, because the client builds an overview of
-            // the cluster resources at bootstrap time
-            was_cached: true,
-            value,
-        })
+        // this is always cached, because the client builds an overview of
+        // the cluster resources at bootstrap time
+        .map(Return::cached)
 }
 
 /// Check if the results of the "list all resources" query have changed since the provided instant
 /// This is done by querying the reflector that keeps track of this query
 pub(crate) async fn has_list_resources_all_result_changed_since_instant(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     api_version: &str,
     kind: &str,
     label_selector: Option<String>,
     field_selector: Option<String>,
     field_masks: Option<BTreeSet<String>>,
     since: tokio::time::Instant,
-) -> Result<cached::Return<bool>> {
+) -> Result<Return<bool>> {
     if client.is_none() {
-        return Err(anyhow!("kube::Client was not initialized properly")).map(cached::Return::new);
+        return Err(anyhow!("kube::Client was not initialized properly")).map(Return::not_cached);
     }
 
     client
@@ -162,41 +157,86 @@ pub(crate) async fn has_list_resources_all_result_changed_since_instant(
             since,
         )
         .await
-        .map(cached::Return::new)
+        .map(Return::not_cached)
 }
 
 pub(crate) async fn can_i(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     request: KWSubjectAccessReview,
-) -> Result<cached::Return<SubjectAccessReviewStatus>> {
+) -> Result<Return<SubjectAccessReviewStatus>> {
     if client.is_none() {
         return Err(anyhow!("kube::Client was not initialized properly"));
     }
 
-    client
-        .unwrap()
-        .can_i(request)
-        .await
-        .map(|value| cached::Return {
-            was_cached: false,
-            value,
-        })
+    client.unwrap().can_i(request).await.map(Return::not_cached)
 }
 
-#[cached(
-    ttl = 5,
-    // We can use the request type as key because cached requires the key to implement Hash + Eq
-    // traits. As we already implement these traits, there is no need to have a custom logic for key
-    // generation. If we do that, we will only convert it into a type (e.g. string)  that
-    // implements the traits as well. 
-    key = "KWSubjectAccessReview",
-    convert = r#"{request.clone()}"#,
-    sync_writes = "default",
-    with_cached_flag = true
-)]
 pub(crate) async fn can_i_cached(
-    client: Option<&mut Client>,
+    client: Option<&Client>,
     request: KWSubjectAccessReview,
-) -> Result<cached::Return<SubjectAccessReviewStatus>> {
-    can_i(client, request).await
+) -> Result<Return<SubjectAccessReviewStatus>> {
+    match client {
+        Some(client) => client.can_i_cached(request).await,
+        None => Err(anyhow!("kube::Client was not initialized properly")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hyper::{Request, Response};
+    use k8s_openapi::api::authorization::v1::SubjectAccessReview;
+    use kube::client::Body;
+
+    use super::*;
+
+    // Ensure that the can_i cache deduplicates the backend calls. The test calls can_i_cached two
+    // times with the same request. The mock API server must receive exactly one SubjectAccessReview
+    // POST: the second call is a cache hit.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn can_i_cached_deduplicates_backend_calls() {
+        let (mocksvc, mut handle) = tower_test::mock::pair::<Request<Body>, Response<Body>>();
+        let sar_counter = Arc::new(AtomicUsize::new(0));
+
+        let counter = sar_counter.clone();
+        tokio::spawn(async move {
+            loop {
+                let (request, send) = handle.next_request().await.expect("service not called");
+                assert_eq!(
+                    request.uri().path(),
+                    "/apis/authorization.k8s.io/v1/subjectaccessreviews"
+                );
+                counter.fetch_add(1, Ordering::SeqCst);
+
+                let response = SubjectAccessReview {
+                    status: Some(SubjectAccessReviewStatus {
+                        allowed: false,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                };
+                let body = serde_json::to_vec(&response).unwrap();
+                send.send_response(Response::builder().body(Body::from(body)).unwrap());
+            }
+        });
+
+        let client = Client::new(kube::Client::new(mocksvc, "default"));
+        let request = KWSubjectAccessReview {
+            user: "system:serviceaccount:default:can-i-cached-dedup-test".to_owned(),
+            ..Default::default()
+        };
+
+        let first = can_i_cached(Some(&client), request.clone())
+            .await
+            .expect("first call failed");
+        let second = can_i_cached(Some(&client), request)
+            .await
+            .expect("second call failed");
+
+        assert!(!first.was_cached);
+        assert!(second.was_cached);
+        assert_eq!(1, sar_counter.load(Ordering::SeqCst));
+    }
 }

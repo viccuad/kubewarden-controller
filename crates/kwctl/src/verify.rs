@@ -23,7 +23,7 @@ pub(crate) async fn verify(
         ?verification_config,
         "Verifying policy"
     );
-    let mut verifier = Verifier::new(sources.cloned(), sigstore_trust_root).await?;
+    let verifier = Verifier::new(sources.cloned(), sigstore_trust_root).await?;
     let verified_manifest_digest = verifier.verify(url, verification_config).await?;
 
     info!("Policy successfully verified");
@@ -36,7 +36,7 @@ pub(crate) async fn verify_local_checksum(
     verified_manifest_digest: &str,
     sigstore_trust_root: Option<Arc<SigstoreTrustRoot>>,
 ) -> Result<()> {
-    let mut verifier = Verifier::new(sources.cloned(), sigstore_trust_root).await?;
+    let verifier = Verifier::new(sources.cloned(), sigstore_trust_root).await?;
     verifier
         .verify_local_file_checksum(policy, verified_manifest_digest)
         .await?;

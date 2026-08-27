@@ -99,7 +99,7 @@ impl Downloader {
 
             let mut verified_manifest_digest: Option<String> = None;
 
-            if let Some(ver) = self.verifier.as_mut() {
+            if let Some(ver) = self.verifier.as_ref() {
                 info!(
                     policy = name.as_str(),
                     "verifying policy authenticity and integrity using sigstore"
@@ -155,7 +155,7 @@ impl Downloader {
                 }
             };
 
-            if let Some(ver) = self.verifier.as_mut() {
+            if let Some(ver) = self.verifier.as_ref() {
                 if let Err(e) = ver
                     .verify_local_file_checksum(
                         &fetched_policy,

@@ -54,9 +54,8 @@ impl Verifier {
     ) -> VerifyResult<Self> {
         let client_config: sigstore::registry::ClientConfig =
             sources.clone().unwrap_or_default().into();
-        let mut cosign_client_builder = ClientBuilder::default()
-            .with_oci_client_config(client_config)
-            .enable_registry_caching();
+        let mut cosign_client_builder =
+            ClientBuilder::default().with_oci_client_config(client_config);
         let cosign_client = match trust_root {
             Some(trust_root) => {
                 cosign_client_builder =
@@ -94,7 +93,7 @@ impl Verifier {
     /// Note well: right now, verification can be done only against policies
     /// that are stored inside of OCI registries.
     pub async fn verify(
-        &mut self,
+        &self,
         image_url: &str,
         verification_config: &config::LatestVerificationConfig,
     ) -> VerifyResult<String> {
@@ -120,7 +119,7 @@ impl Verifier {
     /// Note well: right now, verification can be done only against policies
     /// that are stored inside of OCI registries.
     pub async fn verify_local_file_checksum(
-        &mut self,
+        &self,
         policy: &Policy,
         verified_manifest_digest: &str,
     ) -> VerifyResult<()> {
