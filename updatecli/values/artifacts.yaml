@@ -10,8 +10,8 @@ ociArtifacts:
   # - The skipVersionFromRegistry field defined in the Kubewarden images is a
   #   flag to skip update of the images version in the Helm chart with the
   #   version in the registry. These container images should use the container
-  # - image defined in the release process.
-  #   The artifactHubImage field marks the images that are also listed in the
+  #   image defined in the release process.
+  # - The artifactHubImage field marks the images that are also listed in the
   #   artifacthub.io/images annotation, in charts/admission-controller/Chart.yaml.
   - file: "charts/admission-controller/values.yaml"
     key: "$.image.tag"
