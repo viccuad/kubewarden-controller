@@ -1,9 +1,10 @@
-use anyhow::{Result, anyhow};
-use policy_evaluator::{policy_artifacthub::ArtifactHubPkg, policy_metadata::Metadata};
 use std::{
     fs::{self, File},
     path::PathBuf,
 };
+
+use anyhow::{Result, anyhow};
+use policy_evaluator::{policy_artifacthub::ArtifactHubPkg, policy_metadata::Metadata};
 use time::OffsetDateTime;
 
 pub(crate) fn artifacthub(

@@ -1,7 +1,6 @@
-use policy_fetcher::sources::SourceResult;
-use policy_fetcher::sources::{Certificate, Sources, read_sources_file};
-use std::io::Write;
-use std::path::Path;
+use std::{io::Write, path::Path};
+
+use policy_fetcher::sources::{Certificate, SourceResult, Sources, read_sources_file};
 use tempfile::NamedTempFile;
 use textwrap::indent;
 

@@ -1,16 +1,16 @@
+use std::{
+    collections::{HashMap, HashSet},
+    convert::{TryFrom, TryInto},
+    fs,
+    fs::File,
+    path::{Path, PathBuf},
+};
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use x509_parser::{pem::parse_x509_pem, prelude::*};
 
-use std::collections::{HashMap, HashSet};
-use std::convert::{TryFrom, TryInto};
-use std::path::{Path, PathBuf};
-use std::{fs, fs::File};
-
-use x509_parser::pem::parse_x509_pem;
-use x509_parser::prelude::*;
-
-use crate::errors::FailedToParseYamlDataError;
-use crate::proxy::ProxyConfig;
+use crate::{errors::FailedToParseYamlDataError, proxy::ProxyConfig};
 
 pub type SourceResult<T> = std::result::Result<T, SourceError>;
 
@@ -274,10 +274,12 @@ pub fn read_sources_file(path: &Path) -> SourceResult<Sources> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use serde_json::json;
     use std::io::Write;
+
+    use serde_json::json;
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     // spellchecker:off
     const CERT_DATA: &str = r#"-----BEGIN CERTIFICATE-----

@@ -1,3 +1,5 @@
+use std::{collections::BTreeMap, sync::Arc};
+
 use anyhow::Result;
 use policy_evaluator::policy_fetcher::{
     policy::Policy,
@@ -5,8 +7,6 @@ use policy_evaluator::policy_fetcher::{
     sources::Sources,
     verify::{Verifier, config::LatestVerificationConfig},
 };
-use std::collections::BTreeMap;
-use std::sync::Arc;
 use tracing::{debug, info};
 
 pub(crate) type VerificationAnnotations = BTreeMap<String, String>;

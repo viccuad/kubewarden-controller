@@ -365,12 +365,11 @@ impl PolicyGroupEvaluator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use lazy_static::lazy_static;
     use rstest::*;
     use wasmtime::Engine;
 
+    use super::*;
     use crate::{
         admission_request::AdmissionRequest, host_capabilities::HostCapabilities,
         policy_evaluator::policy_evaluator_builder::PolicyEvaluatorBuilder,

@@ -121,12 +121,12 @@ fn verify_user_provided_execution_mode(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::path::PathBuf;
 
     use policy_evaluator::ProtocolVersion;
     use rstest::rstest;
+
+    use super::*;
 
     fn mock_protocol_version_detector_v1(_wasm_path: PathBuf) -> Result<ProtocolVersion> {
         Ok(ProtocolVersion::V1)

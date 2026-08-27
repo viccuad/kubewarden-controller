@@ -14,8 +14,10 @@ use kube::{
 use kubewarden_policy_sdk::host_capabilities::kubernetes::SubjectAccessReview as KWSubjectAccessReview;
 use tokio::{sync::RwLock, time::Instant};
 
-use crate::callback_handler::cache_return::{Return, try_cached};
-use crate::callback_handler::kubernetes::{ApiVersionKind, KubeResource, reflector::Reflector};
+use crate::callback_handler::{
+    cache_return::{Return, try_cached},
+    kubernetes::{ApiVersionKind, KubeResource, reflector::Reflector},
+};
 
 #[derive(Clone)]
 pub(crate) struct Client {

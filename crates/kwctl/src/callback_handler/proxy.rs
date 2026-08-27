@@ -1,12 +1,3 @@
-use super::ProxyMode;
-use anyhow::{Result, anyhow};
-use policy_evaluator::{
-    callback_handler::CallbackHandlerBuilder,
-    callback_requests::{CallbackRequest, CallbackRequestType, CallbackResponse},
-    kube,
-    policy_fetcher::{sigstore::trust::sigstore::SigstoreTrustRoot, sources::Sources},
-};
-use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
     path::PathBuf,
@@ -15,8 +6,19 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
+
+use anyhow::{Result, anyhow};
+use policy_evaluator::{
+    callback_handler::CallbackHandlerBuilder,
+    callback_requests::{CallbackRequest, CallbackRequestType, CallbackResponse},
+    kube,
+    policy_fetcher::{sigstore::trust::sigstore::SigstoreTrustRoot, sources::Sources},
+};
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info, warn};
+
+use super::ProxyMode;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]

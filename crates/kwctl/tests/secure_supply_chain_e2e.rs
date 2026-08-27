@@ -1,8 +1,9 @@
+use std::{fs, path::Path};
+
 use assert_cmd::Command;
 use common::{setup_command, test_data};
 use predicates::{prelude::*, str::contains};
 use rstest::rstest;
-use std::{fs, path::Path};
 use tempfile::tempdir;
 
 mod common;

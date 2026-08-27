@@ -301,8 +301,9 @@ impl fmt::Display for HostCapabilities {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case::empty_allows_nothing(vec![], "oci/v1/verify", false)]

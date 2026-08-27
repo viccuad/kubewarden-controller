@@ -277,9 +277,10 @@ fn validate_metadata(metadata: &Metadata) -> Result<(), ValidationError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use assert_json_diff::assert_json_eq;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn metadata_validation_pass() -> Result<(), ()> {

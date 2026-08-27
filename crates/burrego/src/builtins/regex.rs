@@ -1,7 +1,9 @@
-use crate::errors::{BurregoError, Result};
 use core::fmt::Display;
-use regex::{Regex, escape as regex_escape};
 use std::{fmt, str::FromStr};
+
+use regex::{Regex, escape as regex_escape};
+
+use crate::errors::{BurregoError, Result};
 
 pub fn split(args: &[serde_json::Value]) -> Result<serde_json::Value> {
     if args.len() != 2 {

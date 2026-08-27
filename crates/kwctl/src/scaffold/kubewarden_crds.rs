@@ -1,7 +1,8 @@
+use std::collections::BTreeSet;
+
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta};
 use policy_evaluator::policy_metadata::{ContextAwareResource, Rule};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

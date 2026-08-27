@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::{Result, anyhow};
 use lazy_static::lazy_static;
 use policy_evaluator::{
@@ -5,7 +7,6 @@ use policy_evaluator::{
     policy_evaluator_builder::PolicyEvaluatorBuilder, policy_metadata::Metadata, wasmparser,
 };
 use semver::{BuildMetadata, Prerelease, Version};
-use std::path::{Path, PathBuf};
 
 lazy_static! {
     static ref KUBEWARDEN_VERSION: Version = Version::parse(env!("CARGO_PKG_VERSION")).unwrap();

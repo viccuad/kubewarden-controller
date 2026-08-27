@@ -1,9 +1,10 @@
+use std::io;
+
 use anyhow::{Result, anyhow};
 use clap_complete::{
     generate,
     shells::{Bash, Elvish, Fish, PowerShell, Zsh},
 };
-use std::io;
 
 pub(crate) fn completions(shell: &str) -> Result<()> {
     let mut app = crate::cli::build_cli();

@@ -82,9 +82,9 @@ fn has_standalone_match(data: &[u8], needle: &[u8], longer: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use wasm_encoder::{ConstExpr, DataSection, MemorySection, MemoryType, Module};
+
+    use super::*;
 
     fn build_wasm(strings: &[&str]) -> walrus::Module {
         let mut module = Module::new();

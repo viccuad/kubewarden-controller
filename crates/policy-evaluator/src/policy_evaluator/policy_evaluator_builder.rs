@@ -1,12 +1,14 @@
-use std::path::Path;
-use std::result::Result;
+use std::{path::Path, result::Result};
 
 use wasmtime_provider::wasmtime;
 
-use crate::errors::PolicyEvaluatorBuilderError;
-use crate::policy_evaluator::errors::InvalidUserInputError;
-use crate::policy_evaluator::{PolicyEvaluatorPre, PolicyExecutionMode, stack_pre::StackPre};
-use crate::runtimes::{rego, wapc, wasi_cli};
+use crate::{
+    errors::PolicyEvaluatorBuilderError,
+    policy_evaluator::{
+        PolicyEvaluatorPre, PolicyExecutionMode, errors::InvalidUserInputError, stack_pre::StackPre,
+    },
+    runtimes::{rego, wapc, wasi_cli},
+};
 
 /// Configure behavior of wasmtime [epoch-based interruptions](https://docs.rs/wasmtime/latest/wasmtime/struct.Config.html#method.epoch_interruption)
 ///

@@ -1,7 +1,6 @@
+use std::{fmt, fmt::Display, path::PathBuf};
+
 use sha2::{Digest, Sha256};
-use std::fmt;
-use std::fmt::Display;
-use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Policy {

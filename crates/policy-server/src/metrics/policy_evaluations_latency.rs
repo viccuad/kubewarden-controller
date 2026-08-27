@@ -1,7 +1,7 @@
+use std::{convert::TryFrom, time::Duration};
+
 use lazy_static::lazy_static;
 use opentelemetry::{KeyValue, metrics::Histogram};
-use std::convert::TryFrom;
-use std::time::Duration;
 
 use crate::metrics::PolicyEvaluationMetric;
 

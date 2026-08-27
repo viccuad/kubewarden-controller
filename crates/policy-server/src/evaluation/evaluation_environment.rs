@@ -3,6 +3,8 @@ use std::{
     sync::Arc,
 };
 
+#[cfg(test)]
+use mockall::automock;
 use policy_evaluator::{
     admission_response::AdmissionResponse,
     admission_response_handler::{
@@ -30,9 +32,6 @@ use crate::{
         precompiled_policy::{PrecompiledPolicies, PrecompiledPolicy},
     },
 };
-
-#[cfg(test)]
-use mockall::automock;
 
 /// The digest of a WebAssembly module
 type ModuleDigest = String;
@@ -756,8 +755,10 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::*;
-    use crate::config::{PolicyGroupMember, PolicyOrPolicyGroup};
-    use crate::test_utils::build_admission_review_request;
+    use crate::{
+        config::{PolicyGroupMember, PolicyOrPolicyGroup},
+        test_utils::build_admission_review_request,
+    };
 
     /// build a precompiled policy of the given wasm module. Assumes this is a OPA Gatekeeper policy
     fn build_precompiled_policy(

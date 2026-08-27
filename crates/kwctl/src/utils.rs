@@ -1,11 +1,15 @@
+use std::{path::PathBuf, str::FromStr};
+
 use anyhow::{Result, anyhow};
-use policy_evaluator::policy_evaluator::PolicyExecutionMode;
-use policy_evaluator::policy_fetcher::oci_client::Reference;
-use policy_evaluator::policy_fetcher::store::{Store, errors::StoreError};
+use policy_evaluator::{
+    policy_evaluator::PolicyExecutionMode,
+    policy_fetcher::{
+        oci_client::Reference,
+        store::{Store, errors::StoreError},
+    },
+};
 use regex::Regex;
 use serde_json::json;
-use std::path::PathBuf;
-use std::str::FromStr;
 use url::Url;
 
 #[derive(Debug, thiserror::Error)]

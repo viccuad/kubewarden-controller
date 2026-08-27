@@ -167,15 +167,14 @@ pub(crate) fn evaluate(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::test_utils::build_admission_review_request;
+    use lazy_static::lazy_static;
     use policy_evaluator::admission_response_handler::{
         policy_id::PolicyID, policy_mode::PolicyMode,
     };
-
-    use lazy_static::lazy_static;
     use rstest::*;
+
+    use super::*;
+    use crate::test_utils::build_admission_review_request;
 
     lazy_static! {
         static ref POLICY_ID: PolicyID = PolicyID::Policy("policy-id".to_string());

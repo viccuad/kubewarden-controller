@@ -1,5 +1,6 @@
-use crate::config::PolicyOrPolicyGroupSettings;
 use policy_evaluator::admission_response_handler::policy_mode::PolicyMode;
+
+use crate::config::PolicyOrPolicyGroupSettings;
 
 /// Holds the evaluation settings of loaded Policy. These settings are taken straight from the
 /// `policies.yml` file provided by the user

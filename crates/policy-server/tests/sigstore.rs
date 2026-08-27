@@ -12,13 +12,12 @@ mod sigstore_tests {
         body::Body,
         http::{self, Request, header},
     };
-    use tower::ServiceExt;
-
     use policy_evaluator::{
         admission_response_handler::policy_mode::PolicyMode,
         policy_fetcher::{sources::read_sources_file, verify::config::VerificationConfigV1},
     };
     use policy_server::config::PolicyOrPolicyGroup;
+    use tower::ServiceExt;
 
     use super::common::{app, default_test_config, setup};
 

@@ -1,7 +1,8 @@
+use std::fs::File;
+
 use anyhow::{Result, anyhow};
 use flate2::read::GzDecoder;
 use policy_evaluator::policy_fetcher::store::Store;
-use std::fs::File;
 use tar::Archive;
 
 // load policies inside the tarball provided by source_path into the default store

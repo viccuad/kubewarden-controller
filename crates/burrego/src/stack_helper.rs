@@ -1,9 +1,11 @@
-use crate::errors::{BurregoError, Result};
-use crate::host_callbacks;
+use std::{collections::HashMap, convert::TryInto};
 
-use std::collections::HashMap;
-use std::convert::TryInto;
 use wasmtime::{AsContext, AsContextMut, Instance, Memory, TypedFunc};
+
+use crate::{
+    errors::{BurregoError, Result},
+    host_callbacks,
+};
 
 /// StackHelper provides a set of helper methods to share data
 /// between the host and the Rego Wasm guest

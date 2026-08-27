@@ -4,7 +4,6 @@ use ::tracing::{info, warn};
 use anyhow::{Result, anyhow};
 use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, pem::SliceIter};
-
 // This is required by certificate hot reload when using inotify, which is available only on linux
 #[cfg(target_os = "linux")]
 use tokio_stream::StreamExt;

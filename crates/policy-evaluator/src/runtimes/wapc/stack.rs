@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use crate::evaluation_context::EvaluationContext;
-use crate::runtimes::wapc::{
-    callback::new_host_callback,
-    errors::{Result, WapcRuntimeError},
-};
-
 use super::StackPre;
+use crate::{
+    evaluation_context::EvaluationContext,
+    runtimes::wapc::{
+        callback::new_host_callback,
+        errors::{Result, WapcRuntimeError},
+    },
+};
 
 pub(crate) struct WapcStack {
     wapc_host: wapc::WapcHost,

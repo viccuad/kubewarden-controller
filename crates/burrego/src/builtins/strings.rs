@@ -1,5 +1,6 @@
-use crate::errors::{BurregoError, Result};
 use std::{collections::HashMap, convert::From};
+
+use crate::errors::{BurregoError, Result};
 
 struct GoTmplValue(gtmpl::Value);
 
@@ -86,8 +87,9 @@ pub fn sprintf(args: &[serde_json::Value]) -> Result<serde_json::Value> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn sprintf_mixed_input() {

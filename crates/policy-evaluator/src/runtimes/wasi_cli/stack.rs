@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tracing::debug;
 use wasmtime_wasi::{I32Exit, WasiCtxBuilder, p1::WasiP1Ctx, p2::pipe::MemoryOutputPipe};
 
@@ -5,8 +7,6 @@ use crate::{
     evaluation_context::EvaluationContext,
     runtimes::wasi_cli::{errors::WasiRuntimeError, stack_pre::StackPre, wasi_pipe::WasiPipe},
 };
-
-use std::sync::Arc;
 
 const EXIT_SUCCESS: i32 = 0;
 

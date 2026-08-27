@@ -1,5 +1,6 @@
-use assert_cmd::Command;
 use std::path::{Path, PathBuf};
+
+use assert_cmd::Command;
 use tempfile::tempdir;
 use testcontainers::{core::WaitFor, runners::SyncRunner};
 

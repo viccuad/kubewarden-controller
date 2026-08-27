@@ -1,11 +1,14 @@
-use kubewarden_policy_sdk::response::ValidationResponse as PolicyValidationResponse;
-use kubewarden_policy_sdk::settings::SettingsValidationResponse;
+use kubewarden_policy_sdk::{
+    response::ValidationResponse as PolicyValidationResponse, settings::SettingsValidationResponse,
+};
 use serde_json::json;
 use tracing::{error, warn};
 
-use crate::admission_response::AdmissionResponse;
-use crate::policy_evaluator::{PolicySettings, ValidateRequest};
-use crate::runtimes::wasi_cli::stack::{RunResult, Stack};
+use crate::{
+    admission_response::AdmissionResponse,
+    policy_evaluator::{PolicySettings, ValidateRequest},
+    runtimes::wasi_cli::stack::{RunResult, Stack},
+};
 
 pub(crate) struct Runtime<'a>(pub(crate) &'a Stack);
 

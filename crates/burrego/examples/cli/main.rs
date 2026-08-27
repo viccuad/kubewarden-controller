@@ -1,11 +1,9 @@
-use anyhow::{Result, anyhow};
-
-use serde_json::json;
 use std::{fs::File, io::BufReader, path::PathBuf, process};
 
+use anyhow::{Result, anyhow};
+use serde_json::json;
 use tracing::debug;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{EnvFilter, fmt};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 extern crate burrego;
 

@@ -1,12 +1,12 @@
 use anyhow::{Result, anyhow};
-
-use crate::callback_handler::cache_return::Return;
 use kubewarden_policy_sdk::host_capabilities::{
     crypto::{Certificate, CertificateEncoding},
     crypto_v1::{CertificateVerificationRequest, CertificateVerificationResponse},
 };
 use pki_types::{CertificateDer, TrustAnchor, UnixTime, pem::PemObject};
 use webpki::{EndEntityCert, Error};
+
+use crate::callback_handler::cache_return::Return;
 
 const CERTIFICATE_USED_AFTER_EXPIRATION: &str =
     "Certificate is being used after its expiration date";
@@ -177,17 +177,19 @@ impl KeyUsageAlwaysValid {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use chrono::Utc;
-    use kubewarden_policy_sdk::host_capabilities::crypto::{Certificate, CertificateEncoding};
-    use kubewarden_policy_sdk::host_capabilities::crypto_v1::CertificateVerificationRequest;
+    use kubewarden_policy_sdk::host_capabilities::{
+        crypto::{Certificate, CertificateEncoding},
+        crypto_v1::CertificateVerificationRequest,
+    };
     use lazy_static::lazy_static;
     use rcgen::{
         CertificateParams, CertifiedKey, ExtendedKeyUsagePurpose, Issuer, KeyPair, KeyUsagePurpose,
     };
     use rstest::rstest;
     use time::{Duration, OffsetDateTime};
+
+    use super::*;
 
     lazy_static! {
         static ref ONE_YEAR_AGO: OffsetDateTime = OffsetDateTime::now_utc()

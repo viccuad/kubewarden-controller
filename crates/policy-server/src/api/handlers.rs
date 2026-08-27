@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     Json,
     extract::{self, FromRequest, Query},
@@ -8,13 +10,10 @@ use policy_evaluator::{
     admission_request::AdmissionRequest, admission_response::AdmissionResponse,
     admission_response_handler::errors::EvaluationError, policy_evaluator::ValidateRequest,
 };
-
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tokio::task;
 use tracing::{Span, debug, error};
 
-use crate::profiling::ReportGenerationError;
 use crate::{
     api::{
         admission_review::{AdmissionReviewRequest, AdmissionReviewResponse},
@@ -24,6 +23,7 @@ use crate::{
         state::ApiServerState,
     },
     profiling,
+    profiling::ReportGenerationError,
 };
 
 // create an extractor that internally uses `axum::Json` but has a custom rejection

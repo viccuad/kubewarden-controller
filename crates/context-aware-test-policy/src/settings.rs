@@ -1,7 +1,7 @@
-use crate::LOG_DRAIN;
-
 use serde::{Deserialize, Serialize};
 use slog::info;
+
+use crate::LOG_DRAIN;
 
 // Describe the settings your policy expects when
 // loaded by the policy server.
@@ -20,9 +20,9 @@ impl kubewarden::settings::Validatable for Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use kubewarden_policy_sdk::settings::Validatable;
+
+    use super::*;
 
     #[test]
     fn validate_settings() -> Result<(), ()> {

@@ -1,11 +1,13 @@
 use std::{collections::BTreeMap, convert::TryFrom};
 
-use sigstore::cosign::signature_layers::CertificateSignature;
-use sigstore::cosign::verification_constraint::{
-    AnnotationVerifier, PublicKeyVerifier, VerificationConstraint,
+use sigstore::{
+    cosign::{
+        SignatureLayer,
+        signature_layers::{CertificateSignature, CertificateSubject},
+        verification_constraint::{AnnotationVerifier, PublicKeyVerifier, VerificationConstraint},
+    },
+    errors::{Result, SigstoreError},
 };
-use sigstore::cosign::{SignatureLayer, signature_layers::CertificateSubject};
-use sigstore::errors::{Result, SigstoreError};
 use tracing::debug;
 
 use crate::verify::{
@@ -315,13 +317,12 @@ impl TryFrom<&str> for GitHubRepo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use rstest::rstest;
-    use sigstore::{
-        cosign::payload::simple_signing::SimpleSigning,
-        cosign::signature_layers::CertificateSignature,
+    use sigstore::cosign::{
+        payload::simple_signing::SimpleSigning, signature_layers::CertificateSignature,
     };
+
+    use super::*;
 
     fn build_signature_layers_pub_key<'a>() -> (&'a str, SignatureLayer) {
         // All this data has been taken by looking at real artifacts produced by

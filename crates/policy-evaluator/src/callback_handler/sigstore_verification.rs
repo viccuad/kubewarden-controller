@@ -1,8 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
-
-use crate::callback_handler::cache_return::{Return, try_cached};
 use itertools::Itertools;
 use kubewarden_policy_sdk::host_capabilities::verification::{
     KeylessInfo, KeylessPrefixInfo, VerificationResponse,
@@ -25,6 +23,8 @@ use sigstore::{
 };
 use tokio::sync::Mutex;
 use tracing::warn;
+
+use crate::callback_handler::cache_return::{Return, try_cached};
 
 // Builds one time-bound verification cache.
 fn new_verification_cache() -> moka::future::Cache<String, VerificationResponse> {

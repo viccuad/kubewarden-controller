@@ -236,9 +236,9 @@ fn generate_yaml_resource(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use policy_evaluator::policy_metadata::ContextAwareResource;
+
+    use super::*;
 
     fn mock_metadata_with_no_annotations() -> Metadata {
         Metadata {

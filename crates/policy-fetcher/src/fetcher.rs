@@ -3,7 +3,10 @@ use std::fmt;
 use async_trait::async_trait;
 use url::Url;
 
-use crate::{Sources, sources::Certificate, sources::SourceResult};
+use crate::{
+    Sources,
+    sources::{Certificate, SourceResult},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ClientProtocol {

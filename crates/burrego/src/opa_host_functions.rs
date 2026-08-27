@@ -1,9 +1,11 @@
-use crate::errors::{BurregoError, Result};
 use tracing::{debug, error};
 use wasmtime::{AsContextMut, Caller, Linker};
 
-use crate::builtins::BUILTINS_HELPER;
-use crate::stack_helper::StackHelper;
+use crate::{
+    builtins::BUILTINS_HELPER,
+    errors::{BurregoError, Result},
+    stack_helper::StackHelper,
+};
 
 /// Add OPA host callbacks to the linker.
 /// The callbackes are the one listed at https://www.openpolicyagent.org/docs/latest/wasm/#imports

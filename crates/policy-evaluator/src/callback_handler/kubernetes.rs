@@ -5,14 +5,13 @@ pub(crate) mod field_mask;
 mod reflector;
 
 use anyhow::{Result, anyhow};
-
-use crate::callback_handler::cache_return::Return;
+pub(crate) use client::Client;
 use k8s_openapi::api::authorization::v1::SubjectAccessReviewStatus;
 use kube::core::ObjectList;
 use kubewarden_policy_sdk::host_capabilities::kubernetes::SubjectAccessReview as KWSubjectAccessReview;
 use serde::Serialize;
 
-pub(crate) use client::Client;
+use crate::callback_handler::cache_return::Return;
 
 #[derive(Eq, Hash, PartialEq)]
 struct ApiVersionKind {
@@ -183,8 +182,10 @@ pub(crate) async fn can_i_cached(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
 
     use hyper::{Request, Response};
     use k8s_openapi::api::authorization::v1::SubjectAccessReview;

@@ -1,6 +1,7 @@
+use std::path::PathBuf;
+
 use anyhow::{Result, anyhow};
 use policy_evaluator::policy_fetcher::store::{PolicyPath, Store};
-use std::path::PathBuf;
 
 use crate::utils::LookupError;
 

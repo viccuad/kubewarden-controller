@@ -1,6 +1,8 @@
-use crate::errors::{BurregoError, Result};
-use chrono::{self, DateTime, Datelike, Duration, Local};
 use std::str::FromStr;
+
+use chrono::{self, DateTime, Datelike, Duration, Local};
+
+use crate::errors::{BurregoError, Result};
 
 pub fn now_ns(args: &[serde_json::Value]) -> Result<serde_json::Value> {
     if !args.is_empty() {
@@ -115,9 +117,10 @@ pub fn date_local(ns: i64) -> Result<serde_json::Value> {
 }
 #[cfg(test)]
 mod test {
-    use super::*;
     use chrono::TimeZone;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_parse_rfc3339_ns() {

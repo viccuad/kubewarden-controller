@@ -5,9 +5,10 @@ use std::{
 };
 
 use axum::Router;
-use policy_evaluator::admission_response_handler::policy_mode::PolicyMode;
-use policy_evaluator::policy_evaluator::PolicySettings;
-use policy_evaluator::policy_metadata::ContextAwareResource;
+use policy_evaluator::{
+    admission_response_handler::policy_mode::PolicyMode, policy_evaluator::PolicySettings,
+    policy_metadata::ContextAwareResource,
+};
 use policy_server::{
     PolicyServer,
     config::{Config, PolicyGroupMember, PolicyOrPolicyGroup},

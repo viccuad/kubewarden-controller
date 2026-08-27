@@ -1,9 +1,10 @@
-use crate::errors::ResponseError;
+use std::{collections::HashMap, result::Result};
 
 use base64::{Engine as _, engine::general_purpose};
 use kubewarden_policy_sdk::response::ValidationResponse as PolicyValidationResponse;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, result::Result};
+
+use crate::errors::ResponseError;
 
 /// This models the admission/v1/AdmissionResponse object of Kubernetes
 /// See https://pkg.go.dev/k8s.io/kubernetes/pkg/apis/admission#AdmissionResponse
@@ -400,8 +401,9 @@ pub enum CauseType {
 mod tests {
     use std::collections::HashMap;
 
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn create_reject_response() {

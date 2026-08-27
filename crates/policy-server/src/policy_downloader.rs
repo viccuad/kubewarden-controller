@@ -258,8 +258,9 @@ fn policies_to_download(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::TempDir;
+
+    use super::*;
 
     #[tokio::test]
     async fn verify_success() {

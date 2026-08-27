@@ -215,11 +215,12 @@ fn write_annotated_wasm_file(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
-    use tempfile::tempdir;
 
     use rstest::rstest;
+    use tempfile::tempdir;
+
+    use super::*;
 
     fn detected(caps: &[(&str, &str)]) -> BTreeSet<String> {
         caps.iter().map(|(ns, op)| format!("{ns}/{op}")).collect()

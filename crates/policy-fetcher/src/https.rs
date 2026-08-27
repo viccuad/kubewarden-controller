@@ -1,17 +1,18 @@
 #![allow(clippy::upper_case_acronyms)]
 
-use async_trait::async_trait;
 use std::{
     boxed::Box,
     convert::{TryFrom, TryInto},
 };
+
+use async_trait::async_trait;
 use url::Url;
 
-use crate::Sources;
-use crate::fetcher::{ClientProtocol, PolicyFetcher, TlsVerificationMode};
-use crate::sources::Certificate;
-use crate::sources::SourceError;
-use crate::sources::SourceResult;
+use crate::{
+    Sources,
+    fetcher::{ClientProtocol, PolicyFetcher, TlsVerificationMode},
+    sources::{Certificate, SourceError, SourceResult},
+};
 
 // Struct used to reference a WASM module that is hosted on a HTTP(s) server
 #[derive(Default)]

@@ -1,15 +1,16 @@
 use std::path::PathBuf;
 
 use kube::Client;
+use lazy_static::lazy_static;
 use policy_evaluator::{
-    callback_handler::CallbackHandlerBuilder, callback_requests::CallbackRequest,
-    evaluation_context::EvaluationContext, policy_evaluator::PolicyEvaluator,
-    policy_evaluator::PolicyExecutionMode, policy_evaluator_builder::PolicyEvaluatorBuilder,
+    callback_handler::CallbackHandlerBuilder,
+    callback_requests::CallbackRequest,
+    evaluation_context::EvaluationContext,
+    policy_evaluator::{PolicyEvaluator, PolicyExecutionMode},
+    policy_evaluator_builder::PolicyEvaluatorBuilder,
 };
 use policy_fetcher::{PullDestination, policy::Policy, sources::Sources};
 use tokio::sync::{mpsc, oneshot};
-
-use lazy_static::lazy_static;
 
 lazy_static! {
     pub(crate) static ref CONTEXT_AWARE_POLICY_FILE: String = format!(

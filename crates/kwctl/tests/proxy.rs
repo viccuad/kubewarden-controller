@@ -1,4 +1,5 @@
 use backon::{BlockingRetryable, ConstantBuilder};
+use common::setup_command;
 use predicates::str::contains;
 use rstest::rstest;
 use tempfile::tempdir;
@@ -7,8 +8,6 @@ use testcontainers::{
     core::{IntoContainerPort, WaitFor},
     runners::SyncRunner,
 };
-
-use common::setup_command;
 mod common;
 
 const POLICY_URI: &str = "registry://ghcr.io/kubewarden/tests/pod-privileged:v0.2.5";

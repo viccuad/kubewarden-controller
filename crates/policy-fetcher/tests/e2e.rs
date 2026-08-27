@@ -30,7 +30,9 @@ mod e2e {
     };
     use tempfile::TempDir;
     use testcontainers::{
-        ContainerRequest, GenericImage, ImageExt, core::Mount, core::WaitFor, runners::AsyncRunner,
+        ContainerRequest, GenericImage, ImageExt,
+        core::{Mount, WaitFor},
+        runners::AsyncRunner,
     };
     use tokio::sync::Mutex;
 

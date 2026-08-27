@@ -160,14 +160,15 @@ impl Runtime<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        sync::{self, Arc},
+        thread, time,
+    };
+
     use super::*;
     use crate::{
         evaluation_context::EvaluationContext, host_capabilities::HostCapabilities,
         runtimes::wapc::callback::new_host_callback,
-    };
-    use std::{
-        sync::{self, Arc},
-        thread, time,
     };
 
     #[test]
