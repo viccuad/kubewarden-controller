@@ -1,10 +1,8 @@
 use anyhow::{Result, anyhow};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_otlp::WithTonicConfig;
-
 use opentelemetry_sdk::Resource;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{EnvFilter, fmt};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use crate::config::{self, build_client_tls_config_from_env};
 

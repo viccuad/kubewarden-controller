@@ -91,11 +91,12 @@ fn build_oci_annotations(annotations: BTreeMap<String, String>) -> BTreeMap<Stri
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use policy_evaluator::constants::{
         KUBEWARDEN_ANNOTATION_POLICY_DESCRIPTION, KUBEWARDEN_ANNOTATION_POLICY_URL,
         KUBEWARDEN_ANNOTATION_POLICY_USAGE,
     };
+
+    use super::*;
 
     #[test]
     fn test_build_oci_annotations_propagate_policy_source() {

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 /// This file defines structs that contain the kubernetes context aware data in a format that is
 /// compatible with what Gatekeeper expects.
 ///
@@ -57,10 +59,11 @@
 ///
 use kube::api::ObjectList;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
-use crate::policy_metadata::ContextAwareResource;
-use crate::runtimes::rego::errors::{RegoRuntimeError, Result};
+use crate::{
+    policy_metadata::ContextAwareResource,
+    runtimes::rego::errors::{RegoRuntimeError, Result},
+};
 
 /// A wrapper around a dictionary that has the resource Name as key,
 /// and a DynamicObject as value
@@ -183,12 +186,12 @@ impl GatekeeperInventory {
 
 #[cfg(test)]
 mod tests {
+    use assert_json_diff::assert_json_eq;
+
+    use super::*;
     use crate::runtimes::rego::context_aware::tests::{
         dynamic_object_from_fixture, object_list_from_dynamic_objects,
     };
-
-    use super::*;
-    use assert_json_diff::assert_json_eq;
 
     #[test]
     fn create() {

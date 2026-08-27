@@ -1,11 +1,10 @@
-use anyhow::Result;
-use policy_fetcher::sigstore::trust::sigstore::SigstoreTrustRoot;
-use policy_fetcher::sources::Sources;
 use std::sync::Arc;
+
+use anyhow::Result;
+use policy_fetcher::{sigstore::trust::sigstore::SigstoreTrustRoot, sources::Sources};
 use tokio::sync::{mpsc, oneshot};
 
-use super::CallbackHandler;
-use super::{oci, sigstore_verification};
+use super::{CallbackHandler, oci, sigstore_verification};
 use crate::callback_requests::CallbackRequest;
 
 const DEFAULT_CHANNEL_BUFF_SIZE: usize = 100;

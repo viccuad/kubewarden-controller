@@ -1,15 +1,11 @@
 mod cli;
 
-use std::fs;
-use std::io::prelude::*;
+use std::{fs, io::prelude::*};
 
 use ::tracing::info;
-use anyhow::Result;
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 use clap::ArgMatches;
-use policy_server::PolicyServer;
-use policy_server::metrics::setup_metrics;
-use policy_server::tracing::setup_tracing;
+use policy_server::{PolicyServer, metrics::setup_metrics, tracing::setup_tracing};
 use rustls::crypto::aws_lc_rs::default_provider;
 
 #[tokio::main]

@@ -456,12 +456,14 @@ pub fn build_client_tls_config_from_env(prefix: &str) -> Result<ClientTlsConfig>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::cli;
+    use std::io::Write;
+
     use rstest::*;
     use serde_json::json;
-    use std::io::Write;
     use tempfile::NamedTempFile;
+
+    use super::*;
+    use crate::cli;
 
     #[test]
     fn read_policies_file_test() {

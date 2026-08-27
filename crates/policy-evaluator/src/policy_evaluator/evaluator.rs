@@ -1,14 +1,17 @@
-use kubewarden_policy_sdk::{metadata::ProtocolVersion, settings::SettingsValidationResponse};
 use std::fmt;
 
-use crate::admission_response::AdmissionResponse;
-use crate::errors::PolicyEvaluatorError;
-use crate::evaluation_context::EvaluationContext;
-use crate::policy_evaluator::{PolicySettings, ValidateRequest};
-use crate::runtimes::Runtime;
-use crate::runtimes::rego::Runtime as BurregoRuntime;
-use crate::runtimes::wapc::Runtime as WapcRuntime;
-use crate::runtimes::wasi_cli::Runtime as WasiRuntime;
+use kubewarden_policy_sdk::{metadata::ProtocolVersion, settings::SettingsValidationResponse};
+
+use crate::{
+    admission_response::AdmissionResponse,
+    errors::PolicyEvaluatorError,
+    evaluation_context::EvaluationContext,
+    policy_evaluator::{PolicySettings, ValidateRequest},
+    runtimes::{
+        Runtime, rego::Runtime as BurregoRuntime, wapc::Runtime as WapcRuntime,
+        wasi_cli::Runtime as WasiRuntime,
+    },
+};
 
 pub struct PolicyEvaluator {
     runtime: Runtime,

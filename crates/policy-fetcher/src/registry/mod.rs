@@ -450,8 +450,9 @@ fn build_immutable_ref(image_ref: &str, manifest_url: &str) -> RegistryResult<St
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest(
         input,

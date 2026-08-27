@@ -1,3 +1,5 @@
+use std::{pin::Pin, sync::Mutex};
+
 use futures::{
     Future, FutureExt,
     future::BoxFuture,
@@ -6,7 +8,6 @@ use futures::{
 use lazy_static::lazy_static;
 use pprof::protos::Message;
 use regex::Regex;
-use std::{pin::Pin, sync::Mutex};
 use thiserror::Error;
 use tracing::info;
 

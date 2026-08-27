@@ -141,12 +141,13 @@ fn make_request_via_callback_channel(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
+    use std::{collections::HashMap, path::Path};
+
     use anyhow::{Result, anyhow};
     use assert_json_diff::assert_json_eq;
     use rstest::rstest;
-    use std::collections::HashMap;
-    use std::path::Path;
+
+    use super::*;
 
     pub fn dynamic_object_from_fixture(
         resource_type: &str,

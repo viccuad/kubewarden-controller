@@ -1,9 +1,10 @@
-use super::{BuiltinFunctionsMap, get_builtins};
-use crate::errors::{BurregoError, Result};
+use std::sync::RwLock;
 
 use lazy_static::lazy_static;
-use std::sync::RwLock;
 use tracing::debug;
+
+use super::{BuiltinFunctionsMap, get_builtins};
+use crate::errors::{BurregoError, Result};
 
 lazy_static! {
     pub(crate) static ref BUILTINS_HELPER: RwLock<BuiltinsHelper> = {

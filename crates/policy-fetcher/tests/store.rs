@@ -1,7 +1,9 @@
 use std::{path::Path, slice};
 
-use policy_fetcher::policy::Policy;
-use policy_fetcher::store::{Store, path};
+use policy_fetcher::{
+    policy::Policy,
+    store::{Store, path},
+};
 use tempfile::tempdir;
 
 #[test]

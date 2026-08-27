@@ -81,8 +81,9 @@ impl fmt::Debug for EvaluationContext {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case::nothing_allowed(BTreeSet::new(), "v1", "Secret", false)]

@@ -8,12 +8,15 @@ use common::{setup_command, test_data};
 use policy_evaluator::{
     kubewarden_policy_sdk::crd::policies::{
         admission_policy, admission_policy_group, cluster_admission_policy,
-        cluster_admission_policy_group, common::ContextAwareResource as ContextAwareResourceSdk,
-        common::PolicyMode,
+        cluster_admission_policy_group,
+        common::{ContextAwareResource as ContextAwareResourceSdk, PolicyMode},
     },
     policy_fetcher, policy_metadata,
 };
-use predicates::{prelude::*, str::contains, str::is_empty, str::is_match};
+use predicates::{
+    prelude::*,
+    str::{contains, is_empty, is_match},
+};
 use rstest::rstest;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;

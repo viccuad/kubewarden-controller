@@ -426,15 +426,12 @@ fn send_request_and_wait_for_response(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
+    use std::{collections::BTreeSet, sync::Arc};
 
     use rstest::rstest;
 
-    use crate::evaluation_context::EvaluationContext;
-    use crate::host_capabilities::HostCapabilities;
-
     use super::host_callback;
+    use crate::{evaluation_context::EvaluationContext, host_capabilities::HostCapabilities};
 
     fn deny_all_ctx() -> Arc<EvaluationContext> {
         Arc::new(EvaluationContext {

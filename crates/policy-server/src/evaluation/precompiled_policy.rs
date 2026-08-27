@@ -1,3 +1,5 @@
+use std::{collections::HashMap, fs, path::Path, vec::Vec};
+
 use anyhow::{Result, anyhow};
 use lazy_static::lazy_static;
 use policy_evaluator::{
@@ -5,7 +7,6 @@ use policy_evaluator::{
 };
 use semver::{BuildMetadata, Prerelease, Version};
 use sha2::{Digest, Sha256};
-use std::{collections::HashMap, fs, path::Path, vec::Vec};
 
 lazy_static! {
     static ref KUBEWARDEN_VERSION: Version = {
@@ -121,8 +122,9 @@ fn has_valid_protocol_version(metadata: &Metadata) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     fn generate_metadata(major: u64, minor: u64, patch: u64) -> Metadata {
         let minimum_kubewarden_version = Version {

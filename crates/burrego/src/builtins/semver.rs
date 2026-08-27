@@ -1,6 +1,8 @@
-use crate::errors::{BurregoError, Result};
-use semver::Version;
 use std::cmp::Ordering;
+
+use semver::Version;
+
+use crate::errors::{BurregoError, Result};
 
 pub fn is_valid(args: &[serde_json::Value]) -> Result<serde_json::Value> {
     if args.len() != 1 {
@@ -65,9 +67,9 @@ pub fn compare(args: &[serde_json::Value]) -> Result<serde_json::Value> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn is_valid() -> Result<()> {

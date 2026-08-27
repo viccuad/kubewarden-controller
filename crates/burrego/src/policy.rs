@@ -1,9 +1,12 @@
-use crate::errors::{BurregoError, Result};
-use crate::stack_helper::StackHelper;
+use std::{collections::HashMap, convert::TryFrom};
+
 use serde_json::json;
-use std::collections::HashMap;
-use std::convert::TryFrom;
 use wasmtime::{AsContextMut, Instance, Memory, TypedFunc};
+
+use crate::{
+    errors::{BurregoError, Result},
+    stack_helper::StackHelper,
+};
 
 /// Handle errors returned when calling a wasmtime function
 /// The macro looks into the error type and, when an epoch interruption

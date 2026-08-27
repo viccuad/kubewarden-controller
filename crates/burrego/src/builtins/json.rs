@@ -41,9 +41,10 @@ pub fn patch(args: &[serde_json::Value]) -> Result<serde_json::Value> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use assert_json_diff::assert_json_eq;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_patch() {

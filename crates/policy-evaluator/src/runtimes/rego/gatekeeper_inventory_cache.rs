@@ -1,18 +1,17 @@
-use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap},
     sync::{Arc, RwLock},
 };
+
+use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use tokio::{sync::mpsc, time::Instant};
 
-use crate::runtimes::rego::context_aware::{
-    get_allowed_resources, have_allowed_resources_changed_since_instant,
-};
 use crate::{
     callback_requests::CallbackRequest,
     policy_metadata::ContextAwareResource,
     runtimes::rego::{
+        context_aware::{get_allowed_resources, have_allowed_resources_changed_since_instant},
         errors::{RegoRuntimeError, Result},
         gatekeeper_inventory::GatekeeperInventory,
     },
@@ -124,13 +123,16 @@ impl GateKeeperInventoryCache {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
-    use crate::callback_requests::{CallbackRequestType, CallbackResponse};
-    use serial_test::serial;
     use std::collections::BTreeMap;
 
-    use crate::runtimes::rego::context_aware::tests::{
-        dynamic_object_from_fixture, object_list_from_dynamic_objects,
+    use serial_test::serial;
+
+    use super::*;
+    use crate::{
+        callback_requests::{CallbackRequestType, CallbackResponse},
+        runtimes::rego::context_aware::tests::{
+            dynamic_object_from_fixture, object_list_from_dynamic_objects,
+        },
     };
 
     #[tokio::test(flavor = "multi_thread")]

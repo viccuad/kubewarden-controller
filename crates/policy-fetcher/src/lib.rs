@@ -3,9 +3,9 @@ extern crate reqwest;
 extern crate rustls;
 extern crate walkdir;
 
+use std::{boxed::Box, fs};
+
 use errors::FetcherResult;
-use std::boxed::Box;
-use std::fs;
 use store::errors::{StoreError, StoreResult};
 use url::Url;
 
@@ -19,14 +19,15 @@ pub mod sources;
 pub mod store;
 pub mod verify;
 
-use crate::errors::{CannotCreateStoragePathError, FetcherError};
-use crate::fetcher::{ClientProtocol, PolicyFetcher, TlsVerificationMode};
-use crate::https::Https;
-use crate::policy::Policy;
-use crate::registry::Registry;
-use crate::registry::build_fully_resolved_reference;
-use crate::sources::Sources;
-use crate::store::Store;
+use crate::{
+    errors::{CannotCreateStoragePathError, FetcherError},
+    fetcher::{ClientProtocol, PolicyFetcher, TlsVerificationMode},
+    https::Https,
+    policy::Policy,
+    registry::{Registry, build_fully_resolved_reference},
+    sources::Sources,
+    store::Store,
+};
 
 #[macro_use]
 extern crate lazy_static;
@@ -35,12 +36,12 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
-use tracing::debug;
-use url::ParseError;
 
 // re-export for usage by kwctl, policy-server, policy-evaluator,...
 pub use oci_client;
 pub use sigstore;
+use tracing::debug;
+use url::ParseError;
 
 lazy_static! {
     static ref KNOWN_SCHEMES: HashSet<&'static str> = {
@@ -248,10 +249,12 @@ fn create_file_if_valid(bytes: &[u8], destination: &Path, url: String) -> Fetche
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use rstest::*;
     use std::{fs, path::Path};
+
+    use rstest::*;
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     fn read_fixture(filename: &Path) -> Vec<u8> {
         let test_data_file = std::env::current_dir()

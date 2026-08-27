@@ -1,14 +1,14 @@
+use std::path::{Path, PathBuf};
+
 use directories::ProjectDirs;
+use errors::StoreError;
 use lazy_static::lazy_static;
 use path_slash::PathExt;
-use std::path::{Path, PathBuf};
 use url::Url;
 use walkdir::WalkDir;
 
-use crate::policy::Policy;
-use errors::StoreError;
-
 use self::errors::StoreResult;
+use crate::policy::Policy;
 
 pub mod errors;
 pub mod path;
@@ -233,9 +233,10 @@ fn host_and_port(url: &Url) -> String {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::Store;
-    use rstest::rstest;
 
     #[rstest(
         input_url,

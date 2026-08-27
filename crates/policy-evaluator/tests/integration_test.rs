@@ -1,27 +1,25 @@
 #![allow(clippy::too_many_arguments)]
+use core::panic;
 use std::{collections::BTreeSet, future::Future};
 
 use anyhow::Result;
-use core::panic;
 use hyper::{Request, Response};
 use kube::{Client, client::Body};
 use kubewarden_policy_sdk::host_capabilities::oci::ManifestDigestResponse;
-use policy_evaluator::admission_response::PatchType;
-use policy_fetcher::oci_client::manifest::{OciDescriptor, OciImageManifest, OciManifest};
-use rstest::*;
-use serde_json::json;
-use tokio::sync::{mpsc, oneshot};
-use tower_test::mock::Handle;
-
 use policy_evaluator::{
     admission_request::AdmissionRequest,
-    admission_response::AdmissionResponseStatus,
+    admission_response::{AdmissionResponseStatus, PatchType},
     callback_requests::{CallbackRequest, CallbackRequestType, CallbackResponse},
     evaluation_context::EvaluationContext,
     host_capabilities::HostCapabilities,
     policy_evaluator::{PolicyExecutionMode, PolicySettings, ValidateRequest},
     policy_metadata::ContextAwareResource,
 };
+use policy_fetcher::oci_client::manifest::{OciDescriptor, OciImageManifest, OciManifest};
+use rstest::*;
+use serde_json::json;
+use tokio::sync::{mpsc, oneshot};
+use tower_test::mock::Handle;
 
 mod common;
 mod k8s_mock;

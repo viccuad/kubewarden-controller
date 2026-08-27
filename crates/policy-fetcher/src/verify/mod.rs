@@ -1,3 +1,5 @@
+use std::{convert::TryFrom, str::FromStr, sync::Arc};
+
 use oci_client::{Reference, manifest::WASM_LAYER_MEDIA_TYPE, secrets::RegistryAuth};
 use sigstore::{
     cosign::{self, ClientBuilder, CosignCapabilities, signature_layers::SignatureLayer},
@@ -5,7 +7,6 @@ use sigstore::{
     registry::oci_reference::OciReference,
     trust::sigstore::SigstoreTrustRoot,
 };
-use std::{convert::TryFrom, str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
@@ -327,13 +328,13 @@ pub async fn fetch_sigstore_remote_data(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use config::{AnyOf, LatestVerificationConfig, Signature, Subject};
     use cosign::signature_layers::CertificateSubject;
-    use sigstore::{
-        cosign::payload::simple_signing::SimpleSigning,
-        cosign::signature_layers::CertificateSignature,
+    use sigstore::cosign::{
+        payload::simple_signing::SimpleSigning, signature_layers::CertificateSignature,
     };
+
+    use super::*;
 
     fn build_signature_layers_keyless(
         issuer: Option<String>,

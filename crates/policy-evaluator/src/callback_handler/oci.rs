@@ -1,8 +1,6 @@
 use std::time::Duration;
 
 use anyhow::Result;
-
-use crate::callback_handler::cache_return::{Return, try_cached};
 use kubewarden_policy_sdk::host_capabilities::oci::ManifestDigestResponse;
 use policy_fetcher::{
     oci_client::{
@@ -13,6 +11,8 @@ use policy_fetcher::{
     sources::Sources,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::callback_handler::cache_return::{Return, try_cached};
 
 /// Helper struct to interact with an OCI registry
 pub(crate) struct Client {

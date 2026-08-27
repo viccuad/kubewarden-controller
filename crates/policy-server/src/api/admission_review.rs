@@ -1,5 +1,6 @@
-use policy_evaluator::admission_request::AdmissionRequest;
-use policy_evaluator::admission_response::AdmissionResponse;
+use policy_evaluator::{
+    admission_request::AdmissionRequest, admission_response::AdmissionResponse,
+};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

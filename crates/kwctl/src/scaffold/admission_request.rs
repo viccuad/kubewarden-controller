@@ -15,10 +15,10 @@ use k8s_openapi::{
 };
 use kube::api::DynamicObject;
 use lazy_static::lazy_static;
-use policy_evaluator::admission_request::{
-    AdmissionRequest, GroupVersionKind, GroupVersionResource,
+use policy_evaluator::{
+    admission_request::{AdmissionRequest, GroupVersionKind, GroupVersionResource},
+    kube,
 };
-use policy_evaluator::kube;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
@@ -420,10 +420,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use std::fs::File;
-    use std::io::Write;
+    use std::{fs::File, io::Write};
 
     use hyper::{Request, Response, http};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::{
@@ -432,6 +429,8 @@ mod tests {
     use kube::client::Body;
     use rstest::*;
     use tower_test::mock::{Handle, SendResponse};
+
+    use super::*;
 
     #[rstest]
     #[case::create_with_right_params(Operation::Create, Some(PathBuf::from_str("new").unwrap()), None, true)]

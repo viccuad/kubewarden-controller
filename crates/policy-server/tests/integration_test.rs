@@ -520,8 +520,9 @@ async fn test_timeout_protection_policy_specific_reject() {
 
 #[tokio::test]
 async fn test_context_aware_policy_host_capability_denied() {
-    use policy_evaluator::policy_metadata::ContextAwareResource;
     use std::collections::BTreeSet;
+
+    use policy_evaluator::policy_metadata::ContextAwareResource;
 
     setup();
 
@@ -584,8 +585,9 @@ async fn test_context_aware_policy_host_capability_denied() {
 
 #[tokio::test]
 async fn test_context_aware_policy_host_capability_allowed() {
-    use policy_evaluator::policy_metadata::ContextAwareResource;
     use std::collections::BTreeSet;
+
+    use policy_evaluator::policy_metadata::ContextAwareResource;
 
     setup();
 
@@ -648,8 +650,9 @@ async fn test_context_aware_group_policy_host_capability(
     #[case] host_capabilities: Vec<String>,
     #[case] expect_cap_denied: bool,
 ) {
-    use policy_evaluator::policy_metadata::ContextAwareResource;
     use std::collections::BTreeSet;
+
+    use policy_evaluator::policy_metadata::ContextAwareResource;
 
     setup();
 
@@ -1125,11 +1128,12 @@ async fn test_detect_certificate_rotation() {
 #[tokio::test]
 #[cfg(feature = "otel_tests")]
 async fn test_otel() {
-    use policy_server::{metrics::setup_metrics, tracing::setup_tracing};
     use std::{
         fs::{Permissions, set_permissions},
         os::unix::fs::PermissionsExt,
     };
+
+    use policy_server::{metrics::setup_metrics, tracing::setup_tracing};
     use tempfile::NamedTempFile;
     use testcontainers::{
         GenericImage, ImageExt,
@@ -1640,8 +1644,9 @@ async fn test_policy_server_with_https_proxy(#[case] set_http_proxy: bool) {
 #[serial_test::serial]
 #[tokio::test]
 async fn test_policy_server_with_http_proxy() {
-    use proxy_helpers::*;
     use std::collections::HashSet;
+
+    use proxy_helpers::*;
     use testcontainers::{GenericImage, core::WaitFor, runners::AsyncRunner};
 
     setup();

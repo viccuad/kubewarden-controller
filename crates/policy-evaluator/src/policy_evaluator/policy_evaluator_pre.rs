@@ -1,9 +1,11 @@
 use std::result::Result;
 
-use crate::errors::PolicyEvaluatorPreError;
-use crate::evaluation_context::EvaluationContext;
-use crate::policy_evaluator::{PolicyEvaluator, stack_pre::StackPre};
-use crate::runtimes::{Runtime, rego, wapc, wasi_cli};
+use crate::{
+    errors::PolicyEvaluatorPreError,
+    evaluation_context::EvaluationContext,
+    policy_evaluator::{PolicyEvaluator, stack_pre::StackPre},
+    runtimes::{Runtime, rego, wapc, wasi_cli},
+};
 
 /// This struct provides a way to quickly allocate a `PolicyEvaluator`
 /// object.

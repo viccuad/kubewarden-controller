@@ -114,10 +114,10 @@ pub fn prune_in_place(val: &mut Value, node: &FieldMaskNode) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use rstest::rstest;
     use serde_json::json;
+
+    use super::*;
 
     #[rstest]
     #[case::objects(

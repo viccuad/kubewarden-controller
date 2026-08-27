@@ -5,8 +5,10 @@ use kubewarden_policy_sdk::host_capabilities::net::LookupResponse;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, warn};
 
-use crate::callback_handler::kubernetes::field_mask;
-use crate::callback_requests::{CallbackRequest, CallbackRequestType, CallbackResponse};
+use crate::{
+    callback_handler::kubernetes::field_mask,
+    callback_requests::{CallbackRequest, CallbackRequestType, CallbackResponse},
+};
 
 mod builder;
 mod cache_return;
@@ -16,7 +18,6 @@ mod oci;
 mod sigstore_verification;
 
 pub use builder::CallbackHandlerBuilder;
-
 use sigstore_verification::{
     get_sigstore_certificate_verification_cached, get_sigstore_github_actions_verification_cached,
     get_sigstore_keyless_prefix_verification_cached, get_sigstore_keyless_verification_cached,

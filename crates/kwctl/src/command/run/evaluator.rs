@@ -337,8 +337,9 @@ async fn build_kube_client() -> Result<kube::Client> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     fn access_to_pod_and_service() -> BTreeSet<ContextAwareResource> {
         BTreeSet::from([

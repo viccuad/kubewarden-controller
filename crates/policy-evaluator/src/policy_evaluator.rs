@@ -4,12 +4,11 @@ pub mod policy_evaluator_builder;
 mod policy_evaluator_pre;
 mod stack_pre;
 
-pub use evaluator::PolicyEvaluator;
-pub use policy_evaluator_pre::PolicyEvaluatorPre;
-
 use std::{convert::TryFrom, fmt, result::Result};
 
+pub use evaluator::PolicyEvaluator;
 use k8s_openapi::apimachinery::pkg::runtime::RawExtension;
+pub use policy_evaluator_pre::PolicyEvaluatorPre;
 use serde::{Deserialize, Serialize};
 use serde_json::value;
 
@@ -106,12 +105,12 @@ impl TryFrom<&serde_json::Value> for PolicySettings {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::collections::HashMap;
 
     use rstest::rstest;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn serialize_policy_execution_mode() {

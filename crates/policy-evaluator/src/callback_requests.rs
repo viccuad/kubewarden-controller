@@ -319,9 +319,9 @@ pub enum CallbackRequestType {
     },
 }
 mod tokio_instant_serializer {
-    use serde::de::Error;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::time::Duration;
+
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
     use tokio::time::Instant;
 
     pub fn serialize<S>(instant: &Instant, serializer: S) -> Result<S::Ok, S::Error>

@@ -1,8 +1,8 @@
-use base64::{Engine as _, alphabet, engine::general_purpose};
 use std::path::{Path, PathBuf};
 
-use crate::store::errors::StoreResult;
-use crate::store::scheme;
+use base64::{Engine as _, alphabet, engine::general_purpose};
+
+use crate::store::{errors::StoreResult, scheme};
 
 /// A base64 engine that uses URL_SAFE alphabet and escapes using no padding
 /// For performance reasons, it's recommended to cache its creation
@@ -67,9 +67,9 @@ pub fn decode_path<P: AsRef<Path>>(path: P) -> StoreResult<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::ffi::OsStr;
+
+    use super::*;
     #[test]
     fn test_encode_path() {
         let expected_path = PathBuf::from("/")

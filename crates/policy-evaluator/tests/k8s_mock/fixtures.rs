@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use k8s_openapi::{
     api::{
         apps::v1::Deployment,
@@ -10,7 +12,6 @@ use kube::core::{
     ListMeta, ObjectList, ObjectMeta, TypeMeta, WatchEvent,
     watch::{Bookmark, BookmarkMeta},
 };
-use std::collections::BTreeMap;
 
 pub(crate) fn v1_resource_list() -> APIResourceList {
     APIResourceList {

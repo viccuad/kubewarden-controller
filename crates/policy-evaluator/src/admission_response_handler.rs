@@ -1,7 +1,8 @@
+use tracing::info;
+
 use crate::admission_response::{
     AdmissionResponse, AdmissionResponseStatus, StatusCause, StatusDetails,
 };
-use tracing::info;
 
 pub mod errors;
 pub mod policy_id;
@@ -163,11 +164,11 @@ fn rejection_message_because_policy_is_not_allowed_to_mutate(policy_id: &PolicyI
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::admission_response::{self, AdmissionResponse};
     use lazy_static::lazy_static;
     use rstest::rstest;
+
+    use super::*;
+    use crate::admission_response::{self, AdmissionResponse};
 
     lazy_static! {
         static ref POLICY_ID: PolicyID = PolicyID::Policy("policy-id".to_string());

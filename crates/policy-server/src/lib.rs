@@ -14,6 +14,8 @@ pub mod metrics;
 pub mod profiling;
 pub mod tracing;
 
+use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
+
 use ::tracing::{Level, debug, info, trace, warn};
 use anyhow::{Result, anyhow};
 use axum::{
@@ -22,6 +24,7 @@ use axum::{
 };
 use axum_server::tls_rustls::RustlsConfig;
 use certs::create_tls_config_and_watch_certificate_changes;
+use config::Config;
 use evaluation::EvaluationEnvironmentBuilder;
 use policy_evaluator::{
     callback_handler::{CallbackHandler, CallbackHandlerBuilder},
@@ -32,23 +35,24 @@ use policy_evaluator::{
 use profiling::activate_memory_profiling;
 use rayon::prelude::*;
 use sigstore_protobuf_specs::dev::sigstore::trustroot::v1::ClientTrustConfig;
-use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use tikv_jemallocator::Jemalloc;
 use tokio::{
     sync::{Notify, Semaphore, oneshot},
     time,
 };
 use tower_http::trace::{self, TraceLayer};
 
-use crate::api::handlers::{
-    audit_handler, pprof_get_cpu, pprof_get_heap, readiness_handler, validate_handler,
-    validate_raw_handler,
+use crate::{
+    api::{
+        handlers::{
+            audit_handler, pprof_get_cpu, pprof_get_heap, readiness_handler, validate_handler,
+            validate_raw_handler,
+        },
+        state::ApiServerState,
+    },
+    evaluation::precompiled_policy::{PrecompiledPolicies, PrecompiledPolicy},
+    policy_downloader::{Downloader, FetchedPolicies},
 };
-use crate::api::state::ApiServerState;
-use crate::evaluation::precompiled_policy::{PrecompiledPolicies, PrecompiledPolicy};
-use crate::policy_downloader::{Downloader, FetchedPolicies};
-use config::Config;
-
-use tikv_jemallocator::Jemalloc;
 
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;

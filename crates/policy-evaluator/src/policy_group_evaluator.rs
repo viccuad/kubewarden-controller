@@ -101,12 +101,12 @@ impl TryFrom<&PolicyGroupMember> for PolicyGroupMemberSettings {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use assert_json_diff::assert_json_eq;
     use k8s_openapi::apimachinery::pkg::runtime::RawExtension;
     use kubewarden_policy_sdk::crd::policies::common::ContextAwareResource as ContextAwareResourceSdk;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_convert_policy_group_member_with_context_into_policy_group_member() {

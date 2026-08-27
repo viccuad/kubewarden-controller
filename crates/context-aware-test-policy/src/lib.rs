@@ -1,3 +1,4 @@
+use guest::prelude::*;
 use k8s_openapi::{
     List,
     api::{
@@ -11,10 +12,8 @@ use kubewarden::host_capabilities::kubernetes::{
     ResourceAttributes, SubjectAccessReview, can_i, get_resource, list_all_resources,
     list_resources_by_namespace,
 };
-use lazy_static::lazy_static;
-
-use guest::prelude::*;
 use kubewarden_policy_sdk::wapc_guest as guest;
+use lazy_static::lazy_static;
 
 extern crate kubewarden_policy_sdk as kubewarden;
 use k8s_openapi::Metadata;
@@ -22,7 +21,6 @@ use kubewarden::{logging, protocol_version_guest, request::ValidationRequest, va
 
 mod settings;
 use settings::Settings;
-
 use slog::{Logger, o};
 
 lazy_static! {

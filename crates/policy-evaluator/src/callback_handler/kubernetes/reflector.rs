@@ -196,11 +196,13 @@ fn modify_object(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::BTreeMap;
+
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ManagedFieldsEntry;
     use kube::core::{DynamicObject, ObjectMeta};
     use serde_json::json;
-    use std::collections::BTreeMap;
+
+    use super::*;
 
     #[test]
     fn test_modify_object_clears_managed_fields() {

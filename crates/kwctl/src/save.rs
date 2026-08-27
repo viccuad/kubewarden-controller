@@ -1,8 +1,8 @@
-use anyhow::{Result, anyhow};
-use flate2::Compression;
-use flate2::write::GzEncoder;
-use policy_evaluator::policy_fetcher::store::{PolicyPath, Store};
 use std::fs::File;
+
+use anyhow::{Result, anyhow};
+use flate2::{Compression, write::GzEncoder};
+use policy_evaluator::policy_fetcher::store::{PolicyPath, Store};
 
 // saves all policies in a tarball with the name provided as output.
 // policies must be inside the default store.

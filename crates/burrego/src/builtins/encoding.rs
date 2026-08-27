@@ -1,6 +1,7 @@
 pub mod base64url {
-    use crate::errors::{BurregoError, Result};
     use base64::{Engine as _, engine::general_purpose};
+
+    use crate::errors::{BurregoError, Result};
 
     /// A base64 engine that uses URL_SAFE alphabet and escapes using no padding
     /// For performance reasons, it's recommended to cache its creation
@@ -30,8 +31,9 @@ pub mod base64url {
 
     #[cfg(test)]
     mod test {
-        use super::*;
         use serde_json::json;
+
+        use super::*;
 
         #[test]
         fn test_encode_no_pad() {
@@ -55,9 +57,11 @@ pub mod base64url {
 }
 
 pub mod urlquery {
-    use crate::errors::{BurregoError, Result};
     use std::collections::HashMap;
+
     use url::Url;
+
+    use crate::errors::{BurregoError, Result};
 
     pub fn encode(args: &[serde_json::Value]) -> Result<serde_json::Value> {
         if args.len() != 1 {
@@ -209,9 +213,10 @@ pub mod urlquery {
 
     #[cfg(test)]
     mod test {
-        use super::*;
         use assert_json_diff::assert_json_eq;
         use serde_json::json;
+
+        use super::*;
 
         #[test]
         fn test_encode() {
@@ -313,10 +318,12 @@ pub mod json {
 
     #[cfg(test)]
     mod test {
-        use super::*;
+        use std::collections::HashMap;
+
         use assert_json_diff::assert_json_eq;
         use serde_json::json;
-        use std::collections::HashMap;
+
+        use super::*;
 
         #[test]
         fn test_is_valid() {
@@ -418,10 +425,12 @@ pub mod yaml {
 
     #[cfg(test)]
     mod test {
-        use super::*;
+        use std::collections::HashMap;
+
         use assert_json_diff::assert_json_eq;
         use serde_json::json;
-        use std::collections::HashMap;
+
+        use super::*;
 
         #[test]
         fn test_marshal() {
@@ -491,8 +500,9 @@ number: 42
 }
 
 pub mod hex {
-    use crate::errors::{BurregoError, Result};
     use core::num;
+
+    use crate::errors::{BurregoError, Result};
 
     pub fn encode(args: &[serde_json::Value]) -> Result<serde_json::Value> {
         if args.len() != 1 {
@@ -551,8 +561,9 @@ pub mod hex {
 
     #[cfg(test)]
     mod test {
-        use super::*;
         use serde_json::json;
+
+        use super::*;
 
         #[test]
         fn test_encode() {

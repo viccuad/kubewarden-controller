@@ -1,9 +1,10 @@
+use std::{collections::BTreeSet, convert::TryFrom, fs::File, path::Path};
+
 use anyhow::{Result, anyhow};
 use k8s_openapi::api::admissionregistration::v1::{
     ValidatingAdmissionPolicy, ValidatingAdmissionPolicyBinding,
 };
 use policy_evaluator::{policy_fetcher::oci_client::Reference, policy_metadata::Rule};
-use std::{collections::BTreeSet, convert::TryFrom, fs::File, path::Path};
 use tracing::warn;
 
 use crate::scaffold::kubewarden_crds::{ClusterAdmissionPolicy, ClusterAdmissionPolicySpec};
@@ -145,8 +146,9 @@ fn convert_vap_to_cluster_admission_policy(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::*;
+
+    use super::*;
 
     const CEL_POLICY_MODULE: &str = "ghcr.io/kubewarden/policies/cel-policy:latest";
 
