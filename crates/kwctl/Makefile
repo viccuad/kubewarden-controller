@@ -11,7 +11,7 @@ build-docs:
 
 .PHONY: fmt
 fmt:
-	cargo fmt --all -- --check
+	cargo +nightly fmt --all -- --check
 
 .PHONY: lint
 lint:

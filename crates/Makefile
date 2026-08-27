@@ -13,8 +13,8 @@ build:
 
 .PHONY: fmt
 fmt:
-	cargo fmt --all -- --check
-
+	cargo +nightly fmt --all -- --check
+	
 .PHONY: lint
 lint:
 	cargo clippy --workspace -- -D warnings
