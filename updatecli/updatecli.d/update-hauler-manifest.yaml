@@ -134,6 +134,43 @@ targets:
       matchpattern: "(.*)- ?name: ?ghcr.io/kyverno/policy-reporter-ui:(v?.+) ?(.*)"
       replacepattern: '$1- name: ghcr.io/kyverno/policy-reporter-ui:{{ source "policyReporterChartUIImageTagValue" }}'
 
+  # The following targets keep the artifacthub.io/images annotation, in
+  # charts/admission-controller/Chart.yaml, in sync with the image tags in
+  # values.yaml.
+  # {{ range $oci := .ociArtifacts }}
+  # {{ if $oci.artifactHubImage }}
+  "target/{{ $oci.image }}ArtifactHubAnnotation":
+    name: "Update {{ $oci.image }} image in artifacthub.io/images annotation"
+    kind: file
+    sourceid: "source/{{ $oci.image }}Version"
+    scmid: "default"
+    dependson:
+      - '{{ printf "source#source/%sVersion" $oci.image }}'
+    spec:
+      file: "charts/admission-controller/Chart.yaml"
+      matchpattern: "(.*)image: {{ $oci.image }}:(v?.+) ?(.*)"
+      replacepattern: '$1image: {{ $oci.image }}:{{ printf "source/%sVersion" $oci.image | source }}'
+  # {{ end }}
+  # {{ end }}
+  policyReporterArtifactHubAnnotation:
+    name: "Update policy-reporter image in artifacthub.io/images annotation"
+    kind: file
+    sourceid: policyReporterChartAppVersion
+    scmid: default
+    spec:
+      file: "charts/admission-controller/Chart.yaml"
+      matchpattern: "(.*)image: ghcr.io/kyverno/policy-reporter:(v?.+) ?(.*)"
+      replacepattern: '$1image: ghcr.io/kyverno/policy-reporter:{{ source "policyReporterChartAppVersion" }}'
+  policyReporterUIArtifactHubAnnotation:
+    name: "Update policy-reporter-ui image in artifacthub.io/images annotation"
+    kind: file
+    sourceid: policyReporterChartUIImageTagValue
+    scmid: default
+    spec:
+      file: "charts/admission-controller/Chart.yaml"
+      matchpattern: "(.*)image: ghcr.io/kyverno/policy-reporter-ui:(v?.+) ?(.*)"
+      replacepattern: '$1image: ghcr.io/kyverno/policy-reporter-ui:{{ source "policyReporterChartUIImageTagValue" }}'
+
 # {{ if .pr.haulerUpdatePr }}
 actions:
   openUpdatePR:
@@ -144,7 +181,7 @@ actions:
       automerge: false
       mergemethod: squash
       description: |
-        Automatic update of Helm chart dependencies: Helm charts, policies, kuberlr-kubectl image, and Hauler manifest.
+        Automatic update of Helm chart dependencies: Helm charts, policies, kuberlr-kubectl image, Hauler manifest, and the artifacthub.io/images annotation.
         This PR has been created by automation.
 
         > [!IMPORTANT]

@@ -52,6 +52,7 @@ Updates the following dependencies:
 - Policy-reporter and openreports chart versions
 - Kuberlr-kubectl image version
 - Hauler manifest with all component versions
+- The `artifacthub.io/images` annotation in `charts/admission-controller/Chart.yaml`
 
 ### Running Updates Manually
 For manual runs of all dependency updates:

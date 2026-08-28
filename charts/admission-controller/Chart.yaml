@@ -44,6 +44,23 @@ annotations:
   # Valid values for the following annotation include: `cluster-tool`, `app` or `cluster-template`
   # See the Cluster Tools section to learn more about when to set this value to `cluster-tool`.
   catalog.cattle.io/type: cluster-tool
+  # List of images that the chart can deploy. Artifact Hub uses this list to
+  # link the images to the correct security report, because Artifact Hub can
+  # find only the images from a dry-run install with default values.
+  # Reference: https://artifacthub.io/docs/topics/annotations/helm/
+  artifacthub.io/images: |
+    - name: controller
+      image: ghcr.io/kubewarden/adm-controller/controller:v1.37.2
+    - name: audit-scanner
+      image: ghcr.io/kubewarden/adm-controller/audit-scanner:v1.37.2
+    - name: policy-server
+      image: ghcr.io/kubewarden/adm-controller/policy-server:v1.37.2
+    - name: kuberlr-kubectl
+      image: ghcr.io/rancher/kuberlr-kubectl:v8.1.1
+    - name: policy-reporter
+      image: ghcr.io/kyverno/policy-reporter:3.9.0
+    - name: policy-reporter-ui
+      image: ghcr.io/kyverno/policy-reporter-ui:2.7.0
 dependencies:
   - name: openreports
     version: 0.2.1
