@@ -36,6 +36,21 @@ use crate::{
 /// The digest of a WebAssembly module
 type ModuleDigest = String;
 
+/// Resolve the epoch deadline (in ticks) to use for a policy evaluation.
+///
+/// A policy's own `timeout_eval_seconds` only takes effect as an override of
+/// the server-wide `global_policy_evaluation_limit_seconds`: when the global
+/// timeout protection is disabled (`global_policy_evaluation_limit_seconds`
+/// is `None`), Wasmtime epoch interruption is not enabled on the shared
+/// engine at all, so `timeoutEvalSeconds` is ignored and no deadline is set
+/// (a startup warning is emitted for this case, see `lib.rs`).
+fn epoch_deadline_for(
+    timeout_eval_seconds: Option<u64>,
+    global_policy_evaluation_limit_seconds: Option<u64>,
+) -> Option<u64> {
+    global_policy_evaluation_limit_seconds.map(|global| timeout_eval_seconds.unwrap_or(global))
+}
+
 /// This structure contains all the policies defined by the user inside of the `policies.yml`.
 /// It also provides helper methods to perform the validation of a request and the validation
 /// of the settings provided by the user.
@@ -223,8 +238,10 @@ impl<'engine, 'precompiled_policies> EvaluationEnvironmentBuilder<'engine, 'prec
                         timeout_eval_seconds: timeout_eval_seconds.to_owned(),
                     };
 
-                    let epoch_deadline =
-                        timeout_eval_seconds.or(self.global_policy_evaluation_limit_seconds);
+                    let epoch_deadline = epoch_deadline_for(
+                        timeout_eval_seconds.to_owned(),
+                        self.global_policy_evaluation_limit_seconds,
+                    );
 
                     let host_capabilities =
                         HostCapabilities::new(host_capabilities).map_err(|e| {
@@ -299,9 +316,10 @@ impl<'engine, 'precompiled_policies> EvaluationEnvironmentBuilder<'engine, 'prec
                             timeout_eval_seconds: policy.timeout_eval_seconds,
                         };
 
-                        let epoch_deadline = policy
-                            .timeout_eval_seconds
-                            .or(self.global_policy_evaluation_limit_seconds);
+                        let epoch_deadline = epoch_deadline_for(
+                            policy.timeout_eval_seconds,
+                            self.global_policy_evaluation_limit_seconds,
+                        );
 
                         let host_capabilities = HostCapabilities::new(
                             policy.host_capabilities.clone(),
@@ -403,7 +421,6 @@ impl EvaluationEnvironment {
     ///
     /// Invariants that are not in params:
     /// - `module_digest`: obtained from `precompiled_policy.digest`
-    /// - `evaluation_limit_seconds`: obtained from `eval_ctx.epoch_deadline`
     fn register(
         &mut self,
         engine: &wasmtime::Engine,
@@ -421,12 +438,8 @@ impl EvaluationEnvironment {
             debug!(?policy_id, "create wasmtime::Module");
             let module = create_wasmtime_module(policy_id, engine, precompiled_policy)?;
             debug!(?policy_id, "create PolicyEvaluatorPre");
-            let pol_eval_pre = create_policy_evaluator_pre(
-                engine,
-                &module,
-                precompiled_policy.execution_mode,
-                eval_ctx.epoch_deadline,
-            )?;
+            let pol_eval_pre =
+                create_policy_evaluator_pre(engine, &module, precompiled_policy.execution_mode)?;
 
             self.module_digest_to_policy_evaluator_pre
                 .insert(module_digest.to_owned(), Arc::new(pol_eval_pre));
@@ -553,9 +566,10 @@ impl EvaluationEnvironment {
 
         let policy_settings = self.get_policy_settings(policy_id)?;
 
-        let epoch_deadline = policy_settings
-            .timeout_eval_seconds
-            .or(self.global_policy_evaluation_limit_seconds);
+        let epoch_deadline = epoch_deadline_for(
+            policy_settings.timeout_eval_seconds,
+            self.global_policy_evaluation_limit_seconds,
+        );
 
         let policy_evaluator_pre = self
             .module_digest_to_policy_evaluator_pre
@@ -685,9 +699,10 @@ impl EvaluationEnvironment {
                 _ => unreachable!(),
             };
 
-            let epoch_deadline = policy_settings
-                .timeout_eval_seconds
-                .or(self.global_policy_evaluation_limit_seconds);
+            let epoch_deadline = epoch_deadline_for(
+                policy_settings.timeout_eval_seconds,
+                self.global_policy_evaluation_limit_seconds,
+            );
 
             let policy_group_member_settings = PolicyGroupMemberSettings {
                 settings,
@@ -724,22 +739,25 @@ fn create_wasmtime_module(
         })
 }
 
-/// Internal function, takes care of creating the `PolicyEvaluator` instance for the given policy
+/// Internal function, takes care of creating the `PolicyEvaluator` instance for the given policy.
+///
+/// Note: this does not configure Wasmtime epoch interruption. An `engine` is
+/// always supplied by the caller (see `PolicyServer::new_from_config`), and
+/// `PolicyEvaluatorBuilder::build_engine` only applies epoch-interruption
+/// settings when it builds its own engine, so calling
+/// `enable_epoch_interruptions` here would have no effect. The engine's
+/// epoch-interruption setting is decided once in `lib.rs`; the per-evaluation
+/// deadline is applied later, via `EvaluationContext::epoch_deadline`
+/// (see `epoch_deadline_for`).
 fn create_policy_evaluator_pre(
     engine: &wasmtime::Engine,
     module: &wasmtime::Module,
     mode: PolicyExecutionMode,
-    policy_evaluation_limit_seconds: Option<u64>,
 ) -> Result<PolicyEvaluatorPre> {
-    let mut policy_evaluator_builder = PolicyEvaluatorBuilder::new()
+    let policy_evaluator_builder = PolicyEvaluatorBuilder::new()
         .engine(engine.to_owned())
         .policy_module(module.to_owned())
         .execution_mode(mode);
-
-    if let Some(limit) = policy_evaluation_limit_seconds {
-        policy_evaluator_builder =
-            policy_evaluator_builder.enable_epoch_interruptions(limit, limit);
-    }
 
     policy_evaluator_builder.build_pre().map_err(|e| {
         EvaluationError::WebAssemblyError(format!("cannot build PolicyEvaluatorPre {e}"))
