@@ -148,8 +148,8 @@ targets:
       - '{{ printf "source#source/%sVersion" $oci.image }}'
     spec:
       file: "charts/admission-controller/Chart.yaml"
-      matchpattern: "(.*)image: {{ $oci.image }}:(v?.+) ?(.*)"
-      replacepattern: '$1image: {{ $oci.image }}:{{ printf "source/%sVersion" $oci.image | source }}'
+      matchpattern: "image: {{ $oci.image }}:(v?\\S+)"
+      replacepattern: 'image: {{ $oci.image }}:{{ printf "source/%sVersion" $oci.image | source }}'
   # {{ end }}
   # {{ end }}
   policyReporterArtifactHubAnnotation:
@@ -159,8 +159,8 @@ targets:
     scmid: default
     spec:
       file: "charts/admission-controller/Chart.yaml"
-      matchpattern: "(.*)image: ghcr.io/kyverno/policy-reporter:(v?.+) ?(.*)"
-      replacepattern: '$1image: ghcr.io/kyverno/policy-reporter:{{ source "policyReporterChartAppVersion" }}'
+      matchpattern: "image: ghcr.io/kyverno/policy-reporter:(v?\\S+)"
+      replacepattern: 'image: ghcr.io/kyverno/policy-reporter:{{ source "policyReporterChartAppVersion" }}'
   policyReporterUIArtifactHubAnnotation:
     name: "Update policy-reporter-ui image in artifacthub.io/images annotation"
     kind: file
@@ -168,8 +168,8 @@ targets:
     scmid: default
     spec:
       file: "charts/admission-controller/Chart.yaml"
-      matchpattern: "(.*)image: ghcr.io/kyverno/policy-reporter-ui:(v?.+) ?(.*)"
-      replacepattern: '$1image: ghcr.io/kyverno/policy-reporter-ui:{{ source "policyReporterChartUIImageTagValue" }}'
+      matchpattern: "image: ghcr.io/kyverno/policy-reporter-ui:(v?\\S+)"
+      replacepattern: 'image: ghcr.io/kyverno/policy-reporter-ui:{{ source "policyReporterChartUIImageTagValue" }}'
 
 # {{ if .pr.haulerUpdatePr }}
 actions:
