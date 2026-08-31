@@ -17,7 +17,7 @@ base64 = { workspace = true }
 burrego = { path = "../burrego" }
 bytes = "1"
 chrono = { version = "0.4", default-features = false }
-dns-lookup = "3.0"
+dns-lookup = "4.0"
 email_address = { version = "0.2", features = ["serde"] }
 futures = { workspace = true }
 hex = { workspace = true }
