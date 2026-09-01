@@ -91,6 +91,8 @@ global:
     - cattle-turtles-system
     - cattle-ui-plugin-system
     - cattle-windows-gmsa-system
+    - cattle-sbomscanner-system
+    - cattle-runtime-enforcer-system
     - cert-manager
     - cis-operator-system
     - fleet-default
@@ -172,7 +174,7 @@ affinity: {}
 # appropriate podAntiAffinity rules to prevent host-port conflicts between
 # controller replicas on the same node.
 # NOTE: hostNetwork mode is incompatible with telemetry sidecar mode
-# (telemetry.mode=sidecar). This combination is rejected; 
+# (telemetry.mode=sidecar). This combination is rejected;
 hostNetwork: false
 
 # Only modify this section if hostNetwork is enabled. When `hostNetwork` is
@@ -348,7 +350,7 @@ auditScanner:
   #
   # The CRDs used to store the audit scanner results must be installed in the
   # cluster. You can install both.
-  # If you want to use the PolicyReports CRDs, enable the 
+  # If you want to use the PolicyReports CRDs, enable the
   # installPolicyReportCRDs flag. If you want to use the OpenReports CRDs,
   # enable the installOpenReportCRDs flag.
   reportCRDsKind: "openreports"
