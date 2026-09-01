@@ -153,17 +153,13 @@ impl PolicyServer {
         // required by policies built by the official go compiler >= 1.26.0
         wasmtime_config.wasm_function_references(true);
 
-        let any_policy_has_timeout = config.policies.values().any(|policy| match policy {
-            config::PolicyOrPolicyGroup::Policy {
-                timeout_eval_seconds,
-                ..
-            } => timeout_eval_seconds.is_some(),
-            config::PolicyOrPolicyGroup::PolicyGroup { policies, .. } => policies
-                .values()
-                .any(|member| member.timeout_eval_seconds.is_some()),
-        });
-        if config.policy_evaluation_limit_seconds.is_some() || any_policy_has_timeout {
+        if config.policy_evaluation_limit_seconds.is_some() {
             wasmtime_config.epoch_interruption(true);
+        } else if config::any_policy_has_timeout(&config.policies) {
+            warn!(
+                "timeout protection is disabled: the timeoutEvalSeconds setting of policies \
+                 will be ignored"
+            );
         }
 
         let engine = wasmtime::Engine::new(&wasmtime_config)?;

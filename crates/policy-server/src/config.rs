@@ -323,7 +323,10 @@ pub struct PolicyGroupMember {
     /// The list of Kubernetes resources the policy is allowed to access
     #[serde(default)]
     pub context_aware_resources: BTreeSet<ContextAwareResource>,
-    /// Timeout for the evaluation of the policy
+    /// Timeout for the evaluation of the policy. Overrides the server-wide
+    /// `policy_evaluation_limit_seconds` for this policy. Only takes effect
+    /// when timeout protection is enabled (i.e. `--disable-timeout-protection`
+    /// is not set); it is ignored otherwise.
     pub timeout_eval_seconds: Option<u64>,
     /// List of host capabilities granted to this policy
     #[serde(default)]
@@ -359,7 +362,10 @@ pub enum PolicyOrPolicyGroup {
         context_aware_resources: BTreeSet<ContextAwareResource>,
         /// The message that is returned when the policy evaluates to false
         message: Option<String>,
-        /// Timeout for the evaluation of the policy
+        /// Timeout for the evaluation of the policy. Overrides the server-wide
+        /// `policy_evaluation_limit_seconds` for this policy. Only takes effect
+        /// when timeout protection is enabled (i.e. `--disable-timeout-protection`
+        /// is not set); it is ignored otherwise.
         timeout_eval_seconds: Option<u64>,
         /// The list of host capabilities granted to this policy
         #[serde(default)]
@@ -399,6 +405,26 @@ impl PolicyOrPolicyGroup {
             }),
         }
     }
+}
+
+/// Returns `true` when at least one policy, or policy-group member, defines
+/// `timeoutEvalSeconds`.
+///
+/// `timeoutEvalSeconds` only takes effect as an override of the server-wide
+/// `policy_evaluation_limit_seconds`; when the global timeout protection is
+/// disabled (e.g. `--disable-timeout-protection`), per-policy timeouts are
+/// ignored. This helper is used to warn the operator when that combination
+/// is detected at startup.
+pub(crate) fn any_policy_has_timeout(policies: &HashMap<String, PolicyOrPolicyGroup>) -> bool {
+    policies.values().any(|policy| match policy {
+        PolicyOrPolicyGroup::Policy {
+            timeout_eval_seconds,
+            ..
+        } => timeout_eval_seconds.is_some(),
+        PolicyOrPolicyGroup::PolicyGroup { policies, .. } => policies
+            .values()
+            .any(|member| member.timeout_eval_seconds.is_some()),
+    })
 }
 
 /// Reads the policies configuration file, returns a HashMap with String as value
@@ -698,5 +724,62 @@ group_policy:
 
         let validation_result = validate_policies(&policies);
         assert_eq!(is_valid, validation_result.is_ok());
+    }
+
+    #[test]
+    fn any_policy_has_timeout_empty() {
+        let policies: HashMap<String, PolicyOrPolicyGroup> = HashMap::new();
+        assert!(!any_policy_has_timeout(&policies));
+    }
+
+    #[rstest]
+    #[case::no_timeouts(
+        r#"
+---
+example:
+  module: file:///tmp/namespace-validate-policy.wasm
+  settings: {}
+group_policy:
+  expression: "true"
+  message: "group policy message"
+  policies:
+    policy1:
+      module: file:///tmp/namespace-validate-policy.wasm
+      settings: {}
+"#,
+        false
+    )]
+    #[case::policy_with_timeout(
+        r#"
+---
+example:
+  module: file:///tmp/namespace-validate-policy.wasm
+  settings: {}
+  timeoutEvalSeconds: 5
+"#,
+        true
+    )]
+    #[case::group_member_with_timeout(
+        r#"
+---
+group_policy:
+  expression: "true"
+  message: "group policy message"
+  policies:
+    policy1:
+      module: file:///tmp/namespace-validate-policy.wasm
+      settings: {}
+    policy2:
+      module: file:///tmp/namespace-validate-policy.wasm
+      settings: {}
+      timeoutEvalSeconds: 3
+"#,
+        true
+    )]
+    fn any_policy_has_timeout_detection(#[case] policies_yaml: &str, #[case] expected: bool) {
+        let policies: HashMap<String, PolicyOrPolicyGroup> =
+            serde_yaml::from_str(policies_yaml).unwrap();
+
+        assert_eq!(expected, any_policy_has_timeout(&policies));
     }
 }
