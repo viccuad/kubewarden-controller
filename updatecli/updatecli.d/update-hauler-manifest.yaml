@@ -159,7 +159,7 @@ targets:
     scmid: default
     spec:
       file: "charts/admission-controller/Chart.yaml"
-      matchpattern: "image: ghcr.io/kyverno/policy-reporter:(v?\\S+)"
+      matchpattern: "image: ghcr\\.io/kyverno/policy-reporter:(v?\\S+)"
       replacepattern: 'image: ghcr.io/kyverno/policy-reporter:{{ source "policyReporterChartAppVersion" }}'
   policyReporterUIArtifactHubAnnotation:
     name: "Update policy-reporter-ui image in artifacthub.io/images annotation"
@@ -168,7 +168,7 @@ targets:
     scmid: default
     spec:
       file: "charts/admission-controller/Chart.yaml"
-      matchpattern: "image: ghcr.io/kyverno/policy-reporter-ui:(v?\\S+)"
+      matchpattern: "image: ghcr\\.io/kyverno/policy-reporter-ui:(v?\\S+)"
       replacepattern: 'image: ghcr.io/kyverno/policy-reporter-ui:{{ source "policyReporterChartUIImageTagValue" }}'
 
 # {{ if .pr.haulerUpdatePr }}
