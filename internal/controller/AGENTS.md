@@ -1,22 +1,22 @@
 # AGENTS.md — the controller
 
 - This file applies to all the files in `internal/controller/`. The root
-[`AGENTS.md`](../../AGENTS.md) holds the rules for the full monorepo.
+  [`AGENTS.md`](../../AGENTS.md) holds the rules for the full monorepo.
 
 ## Structure
 
 - This package holds the reconcilers for the CRDs of the group
-`policies.kubewarden.io`. They are built on controller-runtime.
+  `policies.kubewarden.io`. They are built on controller-runtime.
 - `admissionpolicy_controller.go`, `clusteradmissionpolicy_controller.go` and
-the two `*group` files reconcile the policies into webhook configurations.
+  the two `*group` files reconcile the policies into webhook configurations.
 - `policyserver_controller.go` and the `policy_server_*.go` files handle the
-deployment, the service, the configmap, the PDB and the certificate secret of a
-`PolicyServer`.
+  deployment, the service, the configmap, the PDB and the certificate secret
+  of a `PolicyServer`.
 - `cert_controller.go` rotates the CA and the serving certificates.
 - `policy_subreconciler.go` and `policy_subreconciler_webhook.go` hold the
-logic that the four policy kinds share.
+  logic that the four policy kinds share.
 - `legacy_policy_migration.go` migrates away from the deprecated package
-`api/policies/v1alpha2`.
+  `api/policies/v1alpha2`.
 - `suite_test.go` starts envtest for the full package.
 
 ## Testing strategy
@@ -25,6 +25,7 @@ logic that the four policy kinds share.
 - They are the integration level of the project.
 - Use them for the behavior of a reconciler.
 - For logic that needs no API server, write a unit test instead.
+
 - Run `make test-go` from the root of the repository.
 - The Makefile downloads the envtest binaries into `.envtest/` and sets
   `KUBEBUILDER_ASSETS`.

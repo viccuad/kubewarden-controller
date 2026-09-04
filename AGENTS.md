@@ -5,6 +5,7 @@
 - Kubewarden is a CNCF dynamic admission controller for Kubernetes.
 - It evaluates policies that are compiled to WebAssembly.
 - This repository is a monorepo. It contains these components:
+
 - `controller` — Go — `cmd/controller`, `internal/controller`
 - `audit-scanner` — Go — `cmd/audit-scanner`, `internal/audit-scanner`
 - `policy-server` — Rust — `crates/policy-server`
@@ -26,6 +27,7 @@
 - `docs/` — generated and hand-written documentation
 - `hack/` — helpers for code generation and CI checks
 - `scripts/` — shell utilities that shellcheck examines
+
 - The API server sends the admission requests to the policy server. The policy
   server evaluates the policies and answers with a decision.
 - The controller watches the policy resources and writes the configuration of
@@ -67,7 +69,8 @@ Run these commands from the root of the repository.
 
 ## Testing strategy
 
-- The project has four levels of tests. Write the test at the lowest level that can find the defect.
+- The project has four levels of tests. Write the test at the lowest level
+  that can find the defect.
 - Go unit — beside the code that it tests — `make test-go` — The default. Use it for logic that needs no API server.
 - Controller integration — `internal/controller/` — `make test-go` — The behavior of a reconciler against a real API server.
 - Helm chart unit — `charts/admission-controller/tests/` — `make helm-unittest` — Any change of a template or of a value.
@@ -87,8 +90,8 @@ Run these commands from the root of the repository.
 ## Generated code — the primary rule
 
 - Never edit a generated file by hand.
-- Run `make generate`, then run `make check-generate`, after a change to one of
-these:
+- Run `make generate`, then run `make check-generate`, after a change to one
+  of these:
   - A file in `api/policies/`
   - A `+kubebuilder:` marker
   - `charts/admission-controller/values.yaml`
