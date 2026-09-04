@@ -14,13 +14,11 @@ Kubewarden is a CNCF dynamic admission controller for Kubernetes. It evaluates
 policies that are compiled to WebAssembly. This repository is a monorepo. It
 contains these components:
 
-| Component        | Language | Path                                          |
-| ---------------- | -------- | --------------------------------------------- |
-| `controller`     | Go       | `cmd/controller`, `internal/controller`       |
-| `audit-scanner`  | Go       | `cmd/audit-scanner`, `internal/audit-scanner` |
-| `policy-server`  | Rust     | `crates/policy-server`                        |
-| `kwctl`          | Rust     | `crates/kwctl`                                |
-| Helm chart       | YAML     | `charts/admission-controller`                 |
+- `controller` — Go — `cmd/controller`, `internal/controller`
+- `audit-scanner` — Go — `cmd/audit-scanner`, `internal/audit-scanner`
+- `policy-server` — Rust — `crates/policy-server`
+- `kwctl` — Rust — `crates/kwctl`
+- Helm chart — YAML — `charts/admission-controller`
 
 ## Structure
 
@@ -44,41 +42,37 @@ scripts/                 shell utilities that shellcheck examines
 
 Run these commands from the root of the repository.
 
-| Command                  | Purpose                                                             |
-| ------------------------ | ------------------------------------------------------------------- |
-| `make all`               | Build the controller, the audit scanner, policy-server and kwctl     |
-| `make controller`        | `go build -o ./bin/controller ./cmd/controller`                      |
-| `make audit-scanner`     | `go build -o ./bin/audit-scanner ./cmd/audit-scanner`                |
-| `make policy-server`     | `cross build --release -p policy-server`. It needs `cross`.          |
-| `make kwctl`             | `cross build --release -p kwctl`. It needs `cross`.                  |
-| `make test`              | `test-go` and then `test-rust`                                       |
-| `make test-go`           | `go vet`, then all Go tests except `e2e/`, with envtest and `-race`  |
-| `make test-rust`         | Delegate to `crates/Makefile`                                        |
-| `make helm-unittest`     | Run the unit tests of the Helm chart                                 |
-| `make test-e2e`          | Build the three images, then run `go test ./e2e/ -v`                 |
-| `make test-all`          | `test`, `helm-unittest` and `test-e2e`                               |
-| `make fmt-go`            | `go fmt ./...`                                                       |
-| `make lint-go`           | Run golangci-lint v2.13.1. The Makefile downloads it into `bin/`.    |
-| `make lint-go-fix`       | Run golangci-lint with `--fix`                                       |
-| `make lint`              | `lint-go` and `lint-rust`                                            |
-| `make generate`          | Generate all the generated files again. Read the section that follows. |
-| `make manifests`         | Generate the CRDs, the RBAC rules and the webhook manifests again    |
-| `make check-generate`    | `check-questions`, `generate`, then fail if the tree is dirty        |
-| `make typos`             | Examine the spelling with `typos-cli`                                |
-| `make zizmor`            | Do a static analysis of the GitHub Actions workflows                 |
-| `make advisories-rust`   | `cargo deny check advisories`                                        |
+- `make all` — Build the controller, the audit scanner, policy-server and kwctl
+- `make controller` — `go build -o ./bin/controller ./cmd/controller`
+- `make audit-scanner` — `go build -o ./bin/audit-scanner ./cmd/audit-scanner`
+- `make policy-server` — `cross build --release -p policy-server`. It needs `cross`.
+- `make kwctl` — `cross build --release -p kwctl`. It needs `cross`.
+- `make test` — `test-go` and then `test-rust`
+- `make test-go` — `go vet`, then all Go tests except `e2e/`, with envtest and `-race`
+- `make test-rust` — Delegate to `crates/Makefile`
+- `make helm-unittest` — Run the unit tests of the Helm chart
+- `make test-e2e` — Build the three images, then run `go test ./e2e/ -v`
+- `make test-all` — `test`, `helm-unittest` and `test-e2e`
+- `make fmt-go` — `go fmt ./...`
+- `make lint-go` — Run golangci-lint v2.13.1. The Makefile downloads it into `bin/`.
+- `make lint-go-fix` — Run golangci-lint with `--fix`
+- `make lint` — `lint-go` and `lint-rust`
+- `make generate` — Generate all the generated files again. Read the section that follows.
+- `make manifests` — Generate the CRDs, the RBAC rules and the webhook manifests again
+- `make check-generate` — `check-questions`, `generate`, then fail if the tree is dirty
+- `make typos` — Examine the spelling with `typos-cli`
+- `make zizmor` — Do a static analysis of the GitHub Actions workflows
+- `make advisories-rust` — `cargo deny check advisories`
 
 ## Testing strategy
 
 The project has four levels of tests. Write the test at the lowest level that
 can find the defect.
 
-| Level                  | Location                             | Command             | When to write one                                          |
-| ---------------------- | ------------------------------------ | ------------------- | ---------------------------------------------------------- |
-| Go unit                | beside the code that it tests        | `make test-go`      | The default. Use it for logic that needs no API server.     |
-| Controller integration | `internal/controller/`               | `make test-go`      | The behavior of a reconciler against a real API server.     |
-| Helm chart unit        | `charts/admission-controller/tests/` | `make helm-unittest` | Any change of a template or of a value.                    |
-| Go end to end          | `e2e/`                               | `make test-e2e`     | Only the behavior of the full installation.                 |
+- Go unit — beside the code that it tests — `make test-go` — The default. Use it for logic that needs no API server.
+- Controller integration — `internal/controller/` — `make test-go` — The behavior of a reconciler against a real API server.
+- Helm chart unit — `charts/admission-controller/tests/` — `make helm-unittest` — Any change of a template or of a value.
+- Go end to end — `e2e/` — `make test-e2e` — Only the behavior of the full installation.
 
 ## Development principles
 

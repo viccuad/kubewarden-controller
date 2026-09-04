@@ -39,11 +39,9 @@ value on the manifest, not only its presence in `values.yaml`.
 
 ## Generated files — do not edit them by hand
 
-| File                                                    | Source of truth                                        |
-| ------------------------------------------------------- | ------------------------------------------------------ |
-| `templates/crds/policies.kubewarden.io_*.yaml`           | the `+kubebuilder:` markers in `api/policies/`          |
-| `templates/controller/controller-rbac-roles.yaml`        | the `+kubebuilder:rbac:` markers in `internal/controller/` |
-| `values.schema.json`                                     | `values.yaml`                                          |
+- `templates/crds/policies.kubewarden.io_*.yaml` — the `+kubebuilder:` markers in `api/policies/`
+- `templates/controller/controller-rbac-roles.yaml` — the `+kubebuilder:rbac:` markers in `internal/controller/`
+- `values.schema.json` — `values.yaml`
 
 To generate these files again, run `make manifests` and `make generate-chart`
 from the root of the repository. `make generate` runs both. Then run

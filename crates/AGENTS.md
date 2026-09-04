@@ -5,14 +5,12 @@ This file applies to all the files in `crates/`. The root
 
 ## Structure
 
-| Crate                       | Purpose                                                    |
-| --------------------------- | ---------------------------------------------------------- |
-| `policy-server`             | HTTP server that evaluates WebAssembly admission policies   |
-| `kwctl`                     | CLI that pulls, runs, verifies, inspects and annotates policies |
-| `policy-evaluator`          | Engine that evaluates policies (Wasm and Rego)              |
-| `policy-fetcher`            | Fetches policies from OCI and HTTPS, and verifies signatures |
-| `burrego`                   | Evaluator for Rego (OPA and Gatekeeper)                     |
-| `context-aware-test-policy` | A test fixture. The CI matrix does not include it.          |
+- `policy-server` — HTTP server that evaluates WebAssembly admission policies
+- `kwctl` — CLI that pulls, runs, verifies, inspects and annotates policies
+- `policy-evaluator` — Engine that evaluates policies (Wasm and Rego)
+- `policy-fetcher` — Fetches policies from OCI and HTTPS, and verifies signatures
+- `burrego` — Evaluator for Rego (OPA and Gatekeeper)
+- `context-aware-test-policy` — A test fixture. The CI matrix does not include it.
 
 The Cargo workspace root is the `Cargo.toml` in the root of the repository. It
 declares `members = ["crates/*"]`.
@@ -22,17 +20,15 @@ declares `members = ["crates/*"]`.
 The file `crates/Makefile` collects the operations for the full workspace. Each
 crate also has a `Makefile`. The CI calls those crate Makefiles directly.
 
-| Command (from `crates/`)   | Effect                                                        |
-| -------------------------- | ------------------------------------------------------------- |
-| `make build`               | `cargo build --release`                                       |
-| `make fmt`                 | `cargo +nightly fmt --all -- --check`                          |
-| `make lint`                | `cargo clippy --workspace -- -D warnings`                      |
-| `make lint-fix`            | `cargo clippy --workspace --fix --allow-dirty --allow-staged`  |
-| `make check`               | `cargo check --workspace`                                      |
-| `make test`                | The `test` target of each crate. Each one first runs fmt and lint. |
-| `make unit-tests`          | `cargo test --lib` for each crate. kwctl uses `--bins`.        |
-| `make e2e-tests`           | The integration and e2e targets of each crate                  |
-| `make coverage`            | Coverage of the unit tests and of the integration tests        |
+- `make build` (from `crates/`) — `cargo build --release`
+- `make fmt` (from `crates/`) — `cargo +nightly fmt --all -- --check`
+- `make lint` (from `crates/`) — `cargo clippy --workspace -- -D warnings`
+- `make lint-fix` (from `crates/`) — `cargo clippy --workspace --fix --allow-dirty --allow-staged`
+- `make check` (from `crates/`) — `cargo check --workspace`
+- `make test` (from `crates/`) — The `test` target of each crate. Each one first runs fmt and lint.
+- `make unit-tests` (from `crates/`) — `cargo test --lib` for each crate. kwctl uses `--bins`.
+- `make e2e-tests` (from `crates/`) — The integration and e2e targets of each crate
+- `make coverage` (from `crates/`) — Coverage of the unit tests and of the integration tests
 
 These targets of a single crate are also useful:
 
@@ -53,11 +49,9 @@ These targets of a single crate are also useful:
 
 The workspace has three levels of tests.
 
-| Level             | Command                 | Scope                                            |
-| ----------------- | ----------------------- | ------------------------------------------------ |
-| Unit              | `make unit-tests`       | One module. `cargo test --lib`, or `--bins` for kwctl. |
-| Integration       | `make integration-tests` | The public interface of one crate. `cargo test --test '*'`. |
-| End to end        | `make e2e-tests`        | The full binary, with the network and the registries. |
+- Unit — `make unit-tests` — One module. `cargo test --lib`, or `--bins` for kwctl.
+- Integration — `make integration-tests` — The public interface of one crate. `cargo test --test '*'`.
+- End to end — `make e2e-tests` — The full binary, with the network and the registries.
 
 Some tests need a feature. The sigstore tests need `sigstore-testing`. The
 tracing tests of `policy-server` need `otel_tests`.
