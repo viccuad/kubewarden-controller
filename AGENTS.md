@@ -1,19 +1,10 @@
 # AGENTS.md
 
-This file gives directions to AI coding agents that work in the Kubewarden
-`adm-controller` monorepo. Other `AGENTS.md` files exist in subdirectories. Each
-one has precedence for the files in its subtree:
-
-- [`crates/AGENTS.md`](crates/AGENTS.md) — the Rust workspace
-- [`charts/admission-controller/AGENTS.md`](charts/admission-controller/AGENTS.md) — the Helm chart
-- [`internal/controller/AGENTS.md`](internal/controller/AGENTS.md) — the controller and its envtest suite
-
 ## Project overview
 
 - Kubewarden is a CNCF dynamic admission controller for Kubernetes.
 - It evaluates policies that are compiled to WebAssembly.
 - This repository is a monorepo. It contains these components:
-
 - `controller` — Go — `cmd/controller`, `internal/controller`
 - `audit-scanner` — Go — `cmd/audit-scanner`, `internal/audit-scanner`
 - `policy-server` — Rust — `crates/policy-server`
@@ -35,7 +26,6 @@ one has precedence for the files in its subtree:
 - `docs/` — generated and hand-written documentation
 - `hack/` — helpers for code generation and CI checks
 - `scripts/` — shell utilities that shellcheck examines
-
 - The API server sends the admission requests to the policy server. The policy
   server evaluates the policies and answers with a decision.
 - The controller watches the policy resources and writes the configuration of
@@ -77,9 +67,7 @@ Run these commands from the root of the repository.
 
 ## Testing strategy
 
-The project has four levels of tests. Write the test at the lowest level that
-can find the defect.
-
+- The project has four levels of tests. Write the test at the lowest level that can find the defect.
 - Go unit — beside the code that it tests — `make test-go` — The default. Use it for logic that needs no API server.
 - Controller integration — `internal/controller/` — `make test-go` — The behavior of a reconciler against a real API server.
 - Helm chart unit — `charts/admission-controller/tests/` — `make helm-unittest` — Any change of a template or of a value.
@@ -98,14 +86,12 @@ can find the defect.
 
 ## Generated code — the primary rule
 
-Never edit a generated file by hand.
-
-Run `make generate`, then run `make check-generate`, after a change to one of
+- Never edit a generated file by hand.
+- Run `make generate`, then run `make check-generate`, after a change to one of
 these:
-
-- A file in `api/policies/`
-- A `+kubebuilder:` marker
-- `charts/admission-controller/values.yaml`
+  - A file in `api/policies/`
+  - A `+kubebuilder:` marker
+  - `charts/admission-controller/values.yaml`
 
 Two conditions need your attention:
 
@@ -130,7 +116,9 @@ Two conditions need your attention:
 
 Example commit message:
 
-> feat(controller): reconcile policy server PDBs
->
-> Signed-off-by: Jane Doe <jane@example.com>
-> Assisted-by: Claude Opus 4.5
+```
+feat(controller): reconcile policy server PDBs
+
+Signed-off-by: Jane Doe <jane@example.com>
+Assisted-by: Claude Opus 4.5
+```

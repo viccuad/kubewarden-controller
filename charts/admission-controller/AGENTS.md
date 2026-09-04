@@ -1,10 +1,9 @@
 # AGENTS.md — the Helm chart
 
-This file applies to all the files in `charts/admission-controller/`. The root
-[`AGENTS.md`](../../AGENTS.md) holds the rules for the full monorepo.
-
-This is the single unified chart. It installs the controller, the audit scanner
-and the defaults of the policy server.
+- This file applies to all the files in `charts/admission-controller/`. The
+root [`AGENTS.md`](../../AGENTS.md) holds the rules for the full monorepo.
+- This is the single unified chart. It installs the controller, the audit
+scanner and the defaults of the policy server.
 
 ## Structure
 
@@ -18,8 +17,7 @@ and the defaults of the policy server.
 
 ## Testing strategy
 
-Run `make helm-unittest`.
-
+- Run `make helm-unittest`.
 - A new value needs a test that renders it.
 - The test must show the effect of the value on the manifest, not only its
   presence in `values.yaml`.
@@ -38,7 +36,6 @@ Run `make helm-unittest`.
 - `templates/crds/policies.kubewarden.io_*.yaml` — the `+kubebuilder:` markers in `api/policies/`
 - `templates/controller/controller-rbac-roles.yaml` — the `+kubebuilder:rbac:` markers in `internal/controller/`
 - `values.schema.json` — `values.yaml`
-
 - To generate these files again, run `make manifests` and `make generate-chart`
   from the root of the repository.
 - `make generate` runs both. Then run `make check-generate`.
