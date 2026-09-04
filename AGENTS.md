@@ -10,9 +10,9 @@ one has precedence for the files in its subtree:
 
 ## Project overview
 
-Kubewarden is a CNCF dynamic admission controller for Kubernetes. It evaluates
-policies that are compiled to WebAssembly. This repository is a monorepo. It
-contains these components:
+- Kubewarden is a CNCF dynamic admission controller for Kubernetes.
+- It evaluates policies that are compiled to WebAssembly.
+- This repository is a monorepo. It contains these components:
 
 - `controller` — Go — `cmd/controller`, `internal/controller`
 - `audit-scanner` — Go — `cmd/audit-scanner`, `internal/audit-scanner`
@@ -22,21 +22,19 @@ contains these components:
 
 ## Structure
 
-```
-api/policies/v1/         CRD types (storage version) and admission webhooks
-api/policies/v1alpha2/   deprecated CRD types — new fields go in v1
-cmd/                     entrypoints of the controller and the audit scanner
-internal/controller/     reconcilers and the envtest integration suite
-internal/audit-scanner/  the audit scanner
-internal/certs/          generation of the CA and the serving certificates
-crates/                  Rust workspace (policy-server, kwctl, policy-evaluator,
-                         policy-fetcher, burrego, context-aware-test-policy)
-charts/admission-controller/  the single unified Helm chart
-e2e/                     Go end-to-end tests that run against a kind cluster
-docs/                    generated and hand-written documentation
-hack/                    helpers for code generation and CI checks
-scripts/                 shell utilities that shellcheck examines
-```
+- `api/policies/v1/` — CRD types (storage version) and admission webhooks
+- `api/policies/v1alpha2/` — deprecated CRD types. New fields go in v1.
+- `cmd/` — entrypoints of the controller and the audit scanner
+- `internal/controller/` — reconcilers and the envtest integration suite
+- `internal/audit-scanner/` — the audit scanner
+- `internal/certs/` — generation of the CA and the serving certificates
+- `crates/` — Rust workspace (policy-server, kwctl, policy-evaluator,
+  policy-fetcher, burrego, context-aware-test-policy)
+- `charts/admission-controller/` — the single unified Helm chart
+- `e2e/` — Go end-to-end tests that run against a kind cluster
+- `docs/` — generated and hand-written documentation
+- `hack/` — helpers for code generation and CI checks
+- `scripts/` — shell utilities that shellcheck examines
 
 - The API server sends the admission requests to the policy server. The policy
   server evaluates the policies and answers with a decision.
@@ -100,14 +98,14 @@ can find the defect.
 
 ## Generated code — the primary rule
 
-Never edit a generated file by hand. If you change a file in `api/policies/`, a
-`+kubebuilder:` marker, or `charts/admission-controller/values.yaml`, run these
-commands:
+Never edit a generated file by hand.
 
-```sh
-make generate
-make check-generate
-```
+Run `make generate`, then run `make check-generate`, after a change to one of
+these:
+
+- A file in `api/policies/`
+- A `+kubebuilder:` marker
+- `charts/admission-controller/values.yaml`
 
 Two conditions need your attention:
 
@@ -122,17 +120,17 @@ Two conditions need your attention:
 
 ## Commits
 
-Write commit messages in the Conventional Commits format: `type(scope):
-subject`. For example: `feat(resolver): add a new solver strategy`. The usual
-types are `feat`, `fix`, `perf`, `refactor`, `chore`, `ci` and `docs`.
+- Write the commit message in the Conventional Commits format:
+  `type(scope): subject`. For example: `feat(resolver): add a new solver
+  strategy`.
+- The usual types are `feat`, `fix`, `perf`, `refactor`, `chore`, `ci` and
+  `docs`.
+- Each commit needs a DCO sign-off. Use `git commit -s`.
+- Each commit that an AI helped to write needs an `Assisted-by:` trailer.
 
-Each commit needs a DCO sign-off. Use `git commit -s`.
+Example commit message:
 
-Each commit that an AI helped to write needs an `Assisted-by:` trailer.
-
-```
-feat(controller): reconcile policy server PDBs
-
-Signed-off-by: Jane Doe <jane@example.com>
-Assisted-by: Claude Opus 4.5
-```
+> feat(controller): reconcile policy server PDBs
+>
+> Signed-off-by: Jane Doe <jane@example.com>
+> Assisted-by: Claude Opus 4.5

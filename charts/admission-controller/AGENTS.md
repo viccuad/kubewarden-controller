@@ -8,25 +8,21 @@ and the defaults of the policy server.
 
 ## Structure
 
-```
-templates/controller/    the deployment, the service, the RBAC rules, the
-                         webhooks and the hooks of the controller and the
-                         audit scanner
-templates/crds/          the CRDs of Kubewarden and the imported report CRDs
-templates/defaults/      the default policy server and its RBAC rules
-tests/                   the unit tests of the chart
-values.yaml              the values that the user can set
-questions.yaml           the form of the Rancher user interface
-```
+- `templates/controller/` — the deployment, the service, the RBAC rules, the
+  webhooks and the hooks of the controller and the audit scanner
+- `templates/crds/` — the CRDs of Kubewarden and the imported report CRDs
+- `templates/defaults/` — the default policy server and its RBAC rules
+- `tests/` — the unit tests of the chart
+- `values.yaml` — the values that the user can set
+- `questions.yaml` — the form of the Rancher user interface
 
 ## Testing strategy
 
-```sh
-make helm-unittest
-```
+Run `make helm-unittest`.
 
-A new value needs a test that renders it. The test must show the effect of the
-value on the manifest, not only its presence in `values.yaml`.
+- A new value needs a test that renders it.
+- The test must show the effect of the value on the manifest, not only its
+  presence in `values.yaml`.
 
 ## Development principles
 
@@ -43,25 +39,26 @@ value on the manifest, not only its presence in `values.yaml`.
 - `templates/controller/controller-rbac-roles.yaml` — the `+kubebuilder:rbac:` markers in `internal/controller/`
 - `values.schema.json` — `values.yaml`
 
-To generate these files again, run `make manifests` and `make generate-chart`
-from the root of the repository. `make generate` runs both. Then run
-`make check-generate`.
-
-To change a field of a CRD or an RBAC rule, edit the marker in the Go code. Never
-edit the YAML. `make manifests` also processes `controller-rbac-roles.yaml` with
-`sed`. Thus it is safe to run the target again.
-
-The files `templates/crds/policyreports.yaml` and
-`templates/crds/clusterpolicyreports.yaml` are different. They are third-party
-CRDs inside Helm conditionals. controller-gen does not produce them.
+- To generate these files again, run `make manifests` and `make generate-chart`
+  from the root of the repository.
+- `make generate` runs both. Then run `make check-generate`.
+- To change a field of a CRD or an RBAC rule, edit the marker in the Go code.
+  Never edit the YAML.
+- `make manifests` also processes `controller-rbac-roles.yaml` with `sed`. It
+  is safe to run the target again.
+- The files `templates/crds/policyreports.yaml` and
+  `templates/crds/clusterpolicyreports.yaml` are different. They are
+  third-party CRDs inside Helm conditionals. controller-gen does not produce
+  them.
 
 ## The webhook manifests need a manual merge
 
-`make manifests` writes the webhook configuration to
-`charts/generated-webhooks-manifests.yaml`. That file is outside this directory,
-and the chart does not use it. Read it and merge the changes by hand into
-`templates/controller/webhooks.yaml`. That file is a template. Thus a command
-cannot overwrite it.
+- `make manifests` writes the webhook configuration to
+  `charts/generated-webhooks-manifests.yaml`.
+- That file is outside this directory, and the chart does not use it.
+- Read it and merge the changes by hand into
+  `templates/controller/webhooks.yaml`.
+- That file is a template. A command cannot overwrite it.
 
 ## Conditions that need your attention
 

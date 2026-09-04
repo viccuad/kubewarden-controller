@@ -12,13 +12,14 @@ This file applies to all the files in `crates/`. The root
 - `burrego` — Evaluator for Rego (OPA and Gatekeeper)
 - `context-aware-test-policy` — A test fixture. The CI matrix does not include it.
 
-The Cargo workspace root is the `Cargo.toml` in the root of the repository. It
-declares `members = ["crates/*"]`.
+- The Cargo workspace root is the `Cargo.toml` in the root of the repository.
+  It declares `members = ["crates/*"]`.
 
 ## Commands
 
-The file `crates/Makefile` collects the operations for the full workspace. Each
-crate also has a `Makefile`. The CI calls those crate Makefiles directly.
+- The file `crates/Makefile` collects the operations for the full workspace.
+- Each crate also has a `Makefile`. The CI calls those crate Makefiles
+  directly.
 
 - `make build` (from `crates/`) — `cargo build --release`
 - `make fmt` (from `crates/`) — `cargo +nightly fmt --all -- --check`
@@ -53,10 +54,9 @@ The workspace has three levels of tests.
 - Integration — `make integration-tests` — The public interface of one crate. `cargo test --test '*'`.
 - End to end — `make e2e-tests` — The full binary, with the network and the registries.
 
-Some tests need a feature. The sigstore tests need `sigstore-testing`. The
-tracing tests of `policy-server` need `otel_tests`.
-
-Write the test in the crate that owns the behavior.
+- Some tests need a feature. The sigstore tests need `sigstore-testing`. The
+  tracing tests of `policy-server` need `otel_tests`.
+- Write the test in the crate that owns the behavior.
 
 ## Development principles
 

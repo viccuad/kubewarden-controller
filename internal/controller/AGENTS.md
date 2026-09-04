@@ -22,16 +22,15 @@ This package holds the reconcilers for the CRDs of the group
 
 ## Testing strategy
 
-The tests of this package run against a real API server with envtest. They are
-the integration level of the project. Use them for the behavior of a reconciler.
-For logic that needs no API server, write a unit test instead.
+The tests of this package run against a real API server with envtest.
 
-```sh
-make test-go
-```
+- They are the integration level of the project.
+- Use them for the behavior of a reconciler.
+- For logic that needs no API server, write a unit test instead.
 
-Run this command from the root of the repository. The Makefile downloads the
-envtest binaries into `.envtest/` and sets `KUBEBUILDER_ASSETS`.
+- Run `make test-go` from the root of the repository.
+- The Makefile downloads the envtest binaries into `.envtest/` and sets
+  `KUBEBUILDER_ASSETS`.
 
 These facts apply to the suite:
 
