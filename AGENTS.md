@@ -38,6 +38,19 @@ hack/                    helpers for code generation and CI checks
 scripts/                 shell utilities that shellcheck examines
 ```
 
+- The API server sends the admission requests to the policy server. The policy
+  server evaluates the policies and answers with a decision.
+- The controller watches the policy resources and writes the configuration of
+  the policy server. A change of that configuration starts a new rollout of the
+  policy server. The policy server does not read the configuration again while
+  it runs.
+- The audit scanner sends the resources that are already in the cluster to the
+  policy server. It writes the results into the report resources.
+- The controller manages the certificates. It creates and rotates the CA and the
+  serving certificate of each policy server, and it keeps the CA current in the
+  webhook configurations.
+- `kwctl` is not in the path of the data. It is a local CLI.
+
 ## Commands
 
 Run these commands from the root of the repository.
