@@ -9,7 +9,7 @@
   `policies.kubewarden.io`. They are built on controller-runtime.
 - `admissionpolicy_controller.go`, `clusteradmissionpolicy_controller.go` and
   the two `*group` files reconcile the policies into webhook configurations.
-- `policyserver_controller.go` and the `policy_server_*.go` files handle the
+- `policyserver_controller.go` and the `policyserver_controller_*.go` files handle the
   deployment, the service, the configmap, the PDB and the certificate secret
   of a `PolicyServer`.
 - `cert_controller.go` rotates the CA and the serving certificates.
