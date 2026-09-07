@@ -209,8 +209,8 @@ jobs:
         id: set-matrix
         run: |
           # Exclude context-aware-test-policy as it's a test fixture, not a standalone crate
-          CRATES=$(ls -1 crates | grep -v "^Makefile$" | grep -v "^context-aware-test-policy$" | jq -R -s -c 'split("\n")[:-1]')
-          echo "matrix={\"crate\":$CRATES}" >> $GITHUB_OUTPUT
+          CRATES=$(find crates -mindepth 1 -maxdepth 1 -type d -not -name "context-aware-test-policy" -printf '%f\n' | sort | jq -R -s -c 'split("\n")[:-1]')
+          echo "matrix={\"crate\":$CRATES}" >> "$GITHUB_OUTPUT"
 
   fmt-rust-per-crate:
     needs: calculate-crates-matrix
